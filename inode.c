@@ -105,7 +105,7 @@ static void destroy_inodecache(void)
 
 static const struct super_operations minix_sops = {
 	.alloc_inode	= minix_alloc_inode,
-	.free_inode	= minix_free_in_core_inode,
+	.destroy_inode	= minix_free_in_core_inode,
 	.write_inode	= minix_write_inode,
 	.evict_inode	= minix_evict_inode,
 	.put_super	= minix_put_super,

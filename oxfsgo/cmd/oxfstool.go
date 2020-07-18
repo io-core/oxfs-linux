@@ -4,28 +4,71 @@ import (
   "fmt"
   "flag"
 
-  "github.com/io-core/oxfs-linux/oxfsgo"
+//  "github.com/io-core/oxfs-linux/oxfsgo"
 )
+
+
+
+func ingest(image string, original bool)(item string,err error){
+	err = fmt.Errorf("ingest function not implemented")
+
+	return "OK",err
+}
+
+func produce(image string, original bool)(err error){
+        err = fmt.Errorf("produce function not implemented")
+
+        return err
+}
 
 func main() {
 
-        inPtr := flag.String("i", "RISC.img", "Disk image to read")
-        outPtr := flag.String("o", "OXFS.img", "Disk image to write")
-	convPtr := flag.Bool("convert", false, "Convert a disk image")	
-        checkPtr := flag.Bool("check", false, "Check a disk image")
+        inPtr := flag.String("i", "", "input disk image")
+        outPtr := flag.String("o", "", "output disk image")
+	o2Ptr := flag.Bool("o2x", false, "convert from original to extended format")	
+        x2Ptr := flag.Bool("x2o", false, "convert from extended to original format")
+        checkPtr := flag.Bool("check", false, "check a disk image")
 
 	flag.Parse()
 
-	fmt.Println("starting oxfstool")
-	fmt.Println("Config:", oxfsgo.Config())
-	if *convPtr {
-	        fmt.Println("converting")
-	        fmt.Println("From:", *inPtr)
-	        fmt.Println("To:", *outPtr)
-	}else if *checkPtr{
-                fmt.Println("Checking:", *inPtr)
+	if *o2Ptr && (! *x2Ptr) && (! *checkPtr) {
+		if (*inPtr == "") || (*outPtr == ""){
+                        fmt.Println("input and output disk images must be specified")
+			flag.PrintDefaults()
+		}else{
+	        	fmt.Println("converting original format file system",*inPtr,"to extended format file system",*outPtr)
+			if _,err:=ingest(*inPtr,*o2Ptr); err != nil {
+		                fmt.Println(err)
+			}else{
+				if err=produce(*outPtr,*x2Ptr); err != nil {
+                                	fmt.Println(err)
+				}
+                        }
+		}
+	}else if (! *o2Ptr) && *x2Ptr && (! *checkPtr) {
+                if (*inPtr == "") || (*outPtr == ""){
+                        fmt.Println("input and output disk images must be specified")
+                        flag.PrintDefaults()
+                }else{
+                        fmt.Println("converting original format file system",*inPtr,"to extended format file system",*outPtr)
+                        if _,err:=ingest(*inPtr,*x2Ptr); err != nil {
+                                fmt.Println(err)
+                        }else{
+                                if err=produce(*outPtr,*o2Ptr); err != nil {
+                                	fmt.Println(err)
+				}
+                        }
+                }
+	}else if (! *o2Ptr) && (! *x2Ptr) && *checkPtr {
+                if (*inPtr == "") || (*outPtr == ""){   
+                        fmt.Println("input disk image must be specified")
+                        flag.PrintDefaults()
+                }else{
+	                fmt.Println("Checking:", *inPtr)
+		}
 	}else{
-                fmt.Println("Must specify convert or check")
+                fmt.Println("specify one of o2x, x2o, or check")
+                flag.PrintDefaults()
 	}
 
 }

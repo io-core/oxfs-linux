@@ -11,8 +11,14 @@ import (
 
 
 func ingest(image string, original bool)(item string,err error){
-	err = fmt.Errorf("ingest function not implemented")
 
+	if _, err = os.Stat(image); err == nil {
+	        if f, err := os.Open(image); err == nil{
+	                fmt.Println("opening",image)
+
+			f.Close()
+		}
+	}
 	return "OK",err
 }
 

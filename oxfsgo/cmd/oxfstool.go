@@ -50,7 +50,7 @@ func main() {
                         fmt.Println("input and output disk images must be specified")
                         flag.PrintDefaults()
                 }else{
-                        fmt.Println("converting original format file system",*inPtr,"to extended format file system",*outPtr)
+                        fmt.Println("converting extended format file system",*inPtr,"to original format file system",*outPtr)
                         if _,err:=ingest(*inPtr,*x2Ptr); err != nil {
                                 fmt.Println(err)
                         }else{

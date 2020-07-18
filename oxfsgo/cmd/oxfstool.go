@@ -33,9 +33,16 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func ingestfs(filename string, origfmt bool)(item string,err error){
+func ingestdir(f *os.File, sector int, files map[string][]byte) (outfiles map[string][]byte, err error){
+	err = nil
+
+	return files, err
+}
+
+func ingestfs(filename string, origfmt bool)(files map[string][]byte, err error){
 	var f *os.File
 	var kind  int
+
 
 	_, err = os.Stat(filename)
 	if err == nil {
@@ -49,8 +56,9 @@ func ingestfs(filename string, origfmt bool)(item string,err error){
 		if !(((kind == ORIGINAL) && origfmt ) || ((kind == EXTENDED) && (! origfmt) )){
 			err = fmt.Errorf("wrong format for input disk image %s",filename)
 		}
+		files, err = ingestdir(f,29,files)
 	}
-	return "OK",err
+	return files,err
 }
 
 func producefs(image string, original, force bool)(err error){

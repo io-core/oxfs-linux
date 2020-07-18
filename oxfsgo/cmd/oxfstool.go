@@ -10,23 +10,23 @@ import (
 
 
 
-func ingest(image string, original bool)(item string,err error){
+func ingest(filename string, origfmt bool)(item string,err error){
 	var f *os.File
 
-	_, err = os.Stat(image)
+	_, err = os.Stat(filename)
 	if err == nil {
-	        f, err = os.Open(image)
+	        f, err = os.Open(filename)
         }
 	if err == nil{
 		defer f.Close()
-	        fmt.Println("opened",image)
+	        fmt.Println("opened",filename)
 
 		
 	}
 	return "OK",err
 }
 
-func produce(image string, original bool)(err error){
+func produce(image string, original, force bool)(err error){
         err = fmt.Errorf("produce function not implemented")
 
         return err
@@ -36,7 +36,8 @@ func main() {
 
         inPtr := flag.String("i", "", "input disk image")
         outPtr := flag.String("o", "", "output disk image")
-	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'")
+	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
+	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")	
 	o2Ptr := flag.Bool("o2x", false, "convert from original to extended format")	
         x2Ptr := flag.Bool("x2o", false, "convert from extended to original format")
         checkPtr := flag.Bool("check", false, "check a disk image")
@@ -58,7 +59,7 @@ func main() {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{
-				if err=produce(*outPtr,*x2Ptr); err != nil {
+				if err=produce(*outPtr,*x2Ptr,*forcePtr); err != nil {
                                 	fmt.Println(err)
 	                                os.Exit(1)
 				}

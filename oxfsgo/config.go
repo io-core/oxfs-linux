@@ -45,7 +45,7 @@ type  OBFS_FileHeader struct { // first page of each file on disk
         Aleng, Bleng, Date int32
         Ext  OBFS_ExtensionTable
         Sec OBFS_SectorTable
-        fill [OBFS_SectorSize - OBFS_HeaderSize]byte
+        Fill [OBFS_SectorSize - OBFS_HeaderSize]byte
 }
 
 type  OXFS_FileHeader struct { // 63 in a HeaderPage
@@ -83,7 +83,7 @@ type    OBFS_DirPage struct {
         Mark  uint32
         M     int32
         P0    OBFS_DiskAdr //  (*sec no of left descendant in directory*)
-        fill  [OBFS_FillerSize]byte
+        Fill  [OBFS_FillerSize]byte
         E  [OBFS_DirPgSize]OBFS_DirEntry
 }
 
@@ -91,7 +91,7 @@ type    OXFS_DirPage struct {
         Mark  uint64
         M     int64
         P0    OXFS_DiskAdr //  (*sec no of left descendant in directory*)
-        fill  [OXFS_FillerSize]byte
+        Fill  [OXFS_FillerSize]byte
         E  [OXFS_DirPgSize]OXFS_DirEntry
 }
 

@@ -33,16 +33,43 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func ingestdir(f *os.File, sector int, files map[string][]byte) (outfiles map[string][]byte, err error){
-	err = nil
+func ingestoriginaldir(f *os.File, sector int64, files map[string][]byte) (outfiles map[string][]byte, err error){
+	var hp oxfsgo.OBFS_DirPage	
 
+
+        _,err = f.Seek((sector/29)-1,0)
+        if err == nil {
+                binary.Read(f, binary.LittleEndian, &hp)
+        }
+        if err == nil {
+
+		fmt.Println("ingesting dirpage",sector,"mark",hp.Mark)
+	}
 	return files, err
 }
+
+func ingestextendeddir(f *os.File, sector int64, files map[string][]byte) (outfiles map[string][]byte, err error){
+        var hp *oxfsgo.OXFS_DirPage
+
+
+        _,err = f.Seek((sector/29)-1,0)
+        if err == nil {
+                binary.Read(f, binary.LittleEndian, &hp)
+        }
+        if err == nil {
+                fmt.Println("ingesting dirpage",sector,"mark",hp.Mark)
+
+        }
+        return files, err
+}
+
+
 
 func ingestfs(filename string, origfmt bool)(files map[string][]byte, err error){
 	var f *os.File
 	var kind  int
 
+	files = make(map[string][]byte)
 
 	_, err = os.Stat(filename)
 	if err == nil {
@@ -56,7 +83,11 @@ func ingestfs(filename string, origfmt bool)(files map[string][]byte, err error)
 		if !(((kind == ORIGINAL) && origfmt ) || ((kind == EXTENDED) && (! origfmt) )){
 			err = fmt.Errorf("wrong format for input disk image %s",filename)
 		}
-		files, err = ingestdir(f,29,files)
+		if origfmt {
+			files, err = ingestoriginaldir(f,29,files)
+		}else{
+                        files, err = ingestextendeddir(f,29,files)
+		}
 	}
 	return files,err
 }

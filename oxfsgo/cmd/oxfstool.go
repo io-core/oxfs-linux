@@ -3,6 +3,7 @@ package main
 import (
   "fmt"
   "flag"
+  "os"
 
 //  "github.com/io-core/oxfs-linux/oxfsgo"
 )
@@ -35,6 +36,7 @@ func main() {
 		if (*inPtr == "") || (*outPtr == ""){
                         fmt.Println("input and output disk images must be specified")
 			flag.PrintDefaults()
+                        os.Exit(1)
 		}else{
 			if *o2Ptr {
 	        		fmt.Println("converting original format file system",*inPtr,"to extended format file system",*outPtr)
@@ -43,9 +45,11 @@ func main() {
 			}
 			if _,err:=ingest(*inPtr,*o2Ptr); err != nil {
 		                fmt.Println(err)
+				os.Exit(1)
 			}else{
 				if err=produce(*outPtr,*x2Ptr); err != nil {
                                 	fmt.Println(err)
+	                                os.Exit(1)
 				}
                         }
 		}
@@ -53,12 +57,14 @@ func main() {
                 if (*inPtr == "") || (*outPtr == ""){   
                         fmt.Println("input disk image must be specified")
                         flag.PrintDefaults()
+                        os.Exit(1)
                 }else{
 	                fmt.Println("Checking:", *inPtr)
 		}
 	}else{
                 fmt.Println("specify one of o2x, x2o, or check")
                 flag.PrintDefaults()
+                os.Exit(1)
 	}
 
 }

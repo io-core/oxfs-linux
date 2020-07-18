@@ -11,13 +11,17 @@ import (
 
 
 func ingest(image string, original bool)(item string,err error){
+	var f *os.File
 
-	if _, err = os.Stat(image); err == nil {
-	        if f, err := os.Open(image); err == nil{
-	                fmt.Println("opening",image)
+	_, err = os.Stat(image)
+	if err == nil {
+	        f, err = os.Open(image)
+        }
+	if err == nil{
+		defer f.Close()
+	        fmt.Println("opened",image)
 
-			f.Close()
-		}
+		
 	}
 	return "OK",err
 }

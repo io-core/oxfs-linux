@@ -24,8 +24,8 @@ const OXFS_DirRootAdr  = 29
 const OXFS_DirPgSize   = 63
 const OXFS_HdrPgSize   = 63
 const OXFS_N = 31               //DirPgSize / 2
-const OXFS_DirMark    = 0x9B1EA38D
-const OXFS_HeaderMark = 0x9BA71D86
+const OXFS_DirMark    = 0x9B1EA38E
+const OXFS_HeaderMark = 0x9BA71D87
 const OXFS_FillerSize = 40
 
 type    OBFS_DiskAdr         int32

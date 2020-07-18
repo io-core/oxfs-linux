@@ -4,14 +4,38 @@ import (
   "fmt"
   "flag"
   "os"
-
-//  "github.com/io-core/oxfs-linux/oxfsgo"
+  "encoding/binary"
+  "github.com/io-core/oxfs-linux/oxfsgo"
 )
 
+const	UNKNOWN = 0
+const   ORIGINAL =  1
+const   PADDEDORIGINAL =  2
+const   EXTENDED =  3
+const   PADDEDEXTENDED =  4
 
+func identify(f *os.File) (kind int, size int64, err error) {
+	fi, err := f.Stat()
+	if err == nil {
+		size = fi.Size()
+		_,err = f.Seek(0,0)
+	}
+        if err == nil {
+		buf := make([]byte, 4)
+		_, err = f.Read(buf)
+		if binary.LittleEndian.Uint32(buf) == oxfsgo.OBFS_DirMark {
+			kind = ORIGINAL
+		}
+                if binary.LittleEndian.Uint32(buf) == oxfsgo.OXFS_DirMark {
+                        kind = EXTENDED
+		}
+	}
+	return kind, size, err
+}
 
 func ingest(filename string, origfmt bool)(item string,err error){
 	var f *os.File
+	var kind int
 
 	_, err = os.Stat(filename)
 	if err == nil {
@@ -19,9 +43,12 @@ func ingest(filename string, origfmt bool)(item string,err error){
         }
 	if err == nil{
 		defer f.Close()
-	        fmt.Println("opened",filename)
-
-		
+		kind,_,err = identify(f)
+	}
+	if err == nil{		
+		if !(((kind == ORIGINAL) && origfmt ) || ((kind == EXTENDED) && (! origfmt) )){
+			err = fmt.Errorf("wrong format for input disk image %s",filename)
+		}
 	}
 	return "OK",err
 }

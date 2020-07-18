@@ -31,7 +31,7 @@ func main() {
 
 	flag.Parse()
 
-	if *o2Ptr && (! *x2Ptr) && (! *checkPtr) {
+	if ((*o2Ptr && (! *x2Ptr)) || (*x2Ptr && (! *o2Ptr))) && (! *checkPtr) {
 		if (*inPtr == "") || (*outPtr == ""){
                         fmt.Println("input and output disk images must be specified")
 			flag.PrintDefaults()
@@ -45,20 +45,6 @@ func main() {
 				}
                         }
 		}
-	}else if (! *o2Ptr) && *x2Ptr && (! *checkPtr) {
-                if (*inPtr == "") || (*outPtr == ""){
-                        fmt.Println("input and output disk images must be specified")
-                        flag.PrintDefaults()
-                }else{
-                        fmt.Println("converting extended format file system",*inPtr,"to original format file system",*outPtr)
-                        if _,err:=ingest(*inPtr,*x2Ptr); err != nil {
-                                fmt.Println(err)
-                        }else{
-                                if err=produce(*outPtr,*o2Ptr); err != nil {
-                                	fmt.Println(err)
-				}
-                        }
-                }
 	}else if (! *o2Ptr) && (! *x2Ptr) && *checkPtr {
                 if (*inPtr == "") || (*outPtr == ""){   
                         fmt.Println("input disk image must be specified")

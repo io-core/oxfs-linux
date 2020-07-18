@@ -33,9 +33,9 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func ingest(filename string, origfmt bool)(item string,err error){
+func ingestfs(filename string, origfmt bool)(item string,err error){
 	var f *os.File
-	var kind int
+	var kind  int
 
 	_, err = os.Stat(filename)
 	if err == nil {
@@ -53,7 +53,7 @@ func ingest(filename string, origfmt bool)(item string,err error){
 	return "OK",err
 }
 
-func produce(image string, original, force bool)(err error){
+func producefs(image string, original, force bool)(err error){
         err = fmt.Errorf("produce function not implemented")
 
         return err
@@ -82,11 +82,11 @@ func main() {
 			}else{
                                 fmt.Println("converting extended format file system",*inPtr,"to original format file system",*outPtr,"target size",*sizePtr)
 			}
-			if _,err:=ingest(*inPtr,*o2Ptr); err != nil {
+			if _,err:=ingestfs(*inPtr,*o2Ptr); err != nil {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{
-				if err=produce(*outPtr,*x2Ptr,*forcePtr); err != nil {
+				if err=producefs(*outPtr,*x2Ptr,*forcePtr); err != nil {
                                 	fmt.Println(err)
 	                                os.Exit(1)
 				}

@@ -40,8 +40,20 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
+
+func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblkn uint64, iblk []byte)(block []byte, oiblkn uint64, oiblk []byte, err error){
+	block = make([]byte, 1024)
+
+	return block, iblkn, iblk, err
+}
+
 func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
         var fp oxfsgo.OBFS_FileHeader
+	var iblkn uint64
+	var iblk,block []byte
+
+	const offset = 1024-oxfsgo.OBFS_HeaderSize
+	
 
         _,err = f.Seek(((sector/29)-1)*1024,0)
         if err == nil {
@@ -50,6 +62,23 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
         if err == nil {
 		fe.Date=uint64(fp.Date)
 		fe.Length=uint64((fp.Aleng*1024)+fp.Bleng-oxfsgo.OBFS_HeaderSize)
+		fe.Data=make([]byte, fe.Length)
+		sz:=uint64(offset)
+		if sz > fe.Length {
+			sz =  fe.Length
+		}
+		copy(fe.Data[0:sz],fp.Fill[:])
+		e:=uint64(1)
+		for i:=uint64(offset); i < fe.Length; i=i+1024 {
+			block,iblkn,iblk,err=getOriginalDataBlock(f,e,&fp,iblkn,iblk)
+			if e*1024+(offset)<=fe.Length{
+				copy(fe.Data[i:i+1024],block)
+			}else{
+				fmt.Print(".")
+			}
+			e++
+		}
+		fmt.Println()
 	}
 	return fe, err
 }

@@ -43,6 +43,14 @@ func identify(f *os.File) (kind int, size int64, err error) {
 
 func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblkn uint64, iblk []byte)(block []byte, oiblkn uint64, oiblk []byte, err error){
 	block = make([]byte, 1024)
+	if e < oxfsgo.OBFS_SecTabSize {
+	        _,err = f.Seek((int64(fp.Sec[e])/29-1)*1024,0)
+	        if err == nil {
+	                _, err = f.Read(block)	
+		}
+	}else{
+		fmt.Print("!")
+	}
 
 	return block, iblkn, iblk, err
 }

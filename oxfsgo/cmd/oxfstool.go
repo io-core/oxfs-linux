@@ -39,22 +39,37 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
+func ingestoriginalfile(f *os.File, sector int64)(fe ofile, err error){
+        var fp oxfsgo.OBFS_FileHeader
+
+        _,err = f.Seek(((sector/29)-1)*1024,0)
+        if err == nil {
+                err = binary.Read(f, binary.LittleEndian, &fp)
+        }
+        if err == nil {
+		fe.Date=uint64(fp.Date)
+		fe.Length=uint64((fp.Aleng*1024)+fp.Bleng-oxfsgo.OBFS_HeaderSize)
+	}
+	return fe, err
+}
+
 func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
-	var hp oxfsgo.OBFS_DirPage	
+	var dp oxfsgo.OBFS_DirPage	
         
 
         _,err = f.Seek(((sector/29)-1)*1024,0)
         if err == nil {
-                err = binary.Read(f, binary.LittleEndian, &hp)
+                err = binary.Read(f, binary.LittleEndian, &dp)
         }
         if err == nil {
-	        if hp.P0 != 0{
-			files, err = ingestoriginaldir(f,int64(hp.P0),files)
+	        if dp.P0 != 0{
+			files, err = ingestoriginaldir(f,int64(dp.P0),files)
 		}
-		for i:=int32(0);i<hp.M;i++{
-			fmt.Println("file",string(hp.E[i].Name[:]))
-			if hp.E[i].P != 0 {	
-				files, err = ingestoriginaldir(f,int64(hp.E[i].P),files)
+		for i:=int32(0);i<dp.M;i++{
+			fmt.Println("file",string(dp.E[i].Name[:]))
+			files[string(dp.E[i].Name[:])],err=ingestoriginalfile(f,int64(dp.E[i].Adr))
+			if dp.E[i].P != 0 {	
+				files, err = ingestoriginaldir(f,int64(dp.E[i].P),files)
 			}
 		}
 	}
@@ -62,15 +77,15 @@ func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfil
 }
 
 func ingestextendeddir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
-        var hp *oxfsgo.OXFS_DirPage
+        var dp *oxfsgo.OXFS_DirPage
 
 
         _,err = f.Seek((sector/29)-1,0)
         if err == nil {
-                binary.Read(f, binary.LittleEndian, &hp)
+                binary.Read(f, binary.LittleEndian, &dp)
         }
         if err == nil {
-                fmt.Println("ingesting dirpage",sector,"mark",hp.Mark,"count",hp.M)
+                fmt.Println("ingesting dirpage",sector,"mark",dp.Mark,"count",dp.M)
 
         }
         return files, err

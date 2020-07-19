@@ -40,7 +40,7 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func ingestoriginalfile(f *os.File, sector int64)(fe ofile, err error){
+func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
         var fp oxfsgo.OBFS_FileHeader
 
         _,err = f.Seek(((sector/29)-1)*1024,0)
@@ -54,12 +54,12 @@ func ingestoriginalfile(f *os.File, sector int64)(fe ofile, err error){
 	return fe, err
 }
 
-func ingestkernelimage(f *os.File)(kernel []byte, err error){
+func ingestOriginalKernelImage(f *os.File)(kernel []byte, err error){
 
 	return nil,err
 }
 
-func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
+func ingestOriginalDir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
 	var dp oxfsgo.OBFS_DirPage	
         
 
@@ -69,20 +69,20 @@ func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfil
         }
         if err == nil {
 	        if dp.P0 != 0{
-			files, err = ingestoriginaldir(f,int64(dp.P0),files)
+			files, err = ingestOriginalDir(f,int64(dp.P0),files)
 		}
 		for i:=int32(0);i<dp.M;i++{
 //			fmt.Println("file",string(dp.E[i].Name[:]))
-			files[string(dp.E[i].Name[:])],err=ingestoriginalfile(f,int64(dp.E[i].Adr))
+			files[string(dp.E[i].Name[:])],err=ingestOriginalFile(f,int64(dp.E[i].Adr))
 			if dp.E[i].P != 0 {	
-				files, err = ingestoriginaldir(f,int64(dp.E[i].P),files)
+				files, err = ingestOriginalDir(f,int64(dp.E[i].P),files)
 			}
 		}
 	}
 	return files, err
 }
 
-func ingestextendeddir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
+func ingestExtendedDir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
         var dp *oxfsgo.OXFS_DirPage
 
 
@@ -99,7 +99,7 @@ func ingestextendeddir(f *os.File, sector int64, files map[string]ofile) (outfil
 
 
 
-func ingestfs(filename string, origfmt bool)(files map[string]ofile, err error){
+func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
 	var f *os.File
 	var kind  int
 
@@ -119,13 +119,13 @@ func ingestfs(filename string, origfmt bool)(files map[string]ofile, err error){
 		}
         }
         if err == nil{
-		_,err=ingestkernelimage(f)
+		_,err=ingestOriginalKernelImage(f)
         }
         if err == nil{
  		if origfmt {
-			files, err = ingestoriginaldir(f,29,files)
+			files, err = ingestOriginalDir(f,29,files)
 		}else{
-                        files, err = ingestextendeddir(f,29,files)
+                        files, err = ingestExtendedDir(f,29,files)
 		}
 	//	for i,e := range files {
 	//		fmt.Println(i,e.Date,e.Length)
@@ -176,7 +176,7 @@ func main() {
 			}else{
                                 fmt.Println("converting extended format file system",*inPtr,"to original format file system",*outPtr,"target size",*sizePtr)
 			}
-			if _,err:=ingestfs(*inPtr,*o2Ptr); err != nil {
+			if _,err:=ingestFS(*inPtr,*o2Ptr); err != nil {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{

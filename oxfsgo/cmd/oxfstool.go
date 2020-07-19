@@ -202,25 +202,40 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 		}else{
                         files, err = ingestExtendedDir(f,29,files)
 		}
-		keys := make([]string, 0, len(files))
-		for k := range files {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		
-		for _, k := range keys {
-			fmt.Println(k, files[k].Date,files[k].Length)
-//			fmt.Println(string(files[k].Data))
-		}
-
-
-
 	}
 	return files,err
 }
 
-func producefs(image string, outfmt int, force bool)(err error){
-        err = fmt.Errorf("produce function not implemented")
+func producefs(name string, files map[string]ofile, outfmt int, force bool)(err error){
+	var fi *os.File
+        keys := make([]string, 0, len(files))
+        for k := range files {
+                keys = append(keys, k)
+        }
+        sort.Strings(keys)
+
+	if outfmt == ORIGINAL{
+		err = fmt.Errorf("produce ORIGINAL not implemented")
+	}else if outfmt == EXTENDED{
+		err = fmt.Errorf("produce EXTENDED not implemented")
+	}else if outfmt == LOCALFILES{
+		fi, err = os.Open(name)
+	        if err == nil{
+			fs, staterr := fi.Stat()
+			fi.Close()
+			switch {
+			  case staterr != nil:
+			  	err = staterr
+			  case fs.IsDir():
+			        for _, k := range keys {
+			                fmt.Println(k, files[k].Date,files[k].Length)
+//      	        		fmt.Println(string(files[k].Data))
+			        }
+	                  default:
+	                        err = fmt.Errorf("destination for localfiles is not a directory")
+	                }
+		}
+	}
 
         return err
 }
@@ -262,11 +277,11 @@ func main() {
 			flag.PrintDefaults()
                         os.Exit(1)
 		}else{
-			if _,err:=ingestFS(*inPtr, infmt); err != nil {
+			if files,err:=ingestFS(*inPtr, infmt); err != nil {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{
-				if err=producefs(*outPtr, outfmt, *forcePtr); err != nil {
+				if err=producefs(*outPtr, files, outfmt, *forcePtr); err != nil {
                                 	fmt.Println(err)
 	                                os.Exit(1)
 				}

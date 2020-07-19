@@ -5,6 +5,7 @@ import (
   "flag"
   "os"
   "sort"
+  "strings"
   "encoding/binary"
   "github.com/io-core/oxfs-linux/oxfsgo"
 )
@@ -228,8 +229,17 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 			  	err = staterr
 			  case fs.IsDir():
 			        for _, k := range keys {
-			                fmt.Println(k, files[k].Date,files[k].Length)
+			                fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
 //      	        		fmt.Println(string(files[k].Data))
+					fname:=name+"/"+k
+					fw, err := os.Create( strings.Replace(fname, "\x00", "", -1))
+					if err == nil {
+						_, err = fw.Write(files[k].Data)
+					}else{
+						fmt.Println(err)
+					}
+					fw.Close()
+
 			        }
 	                  default:
 	                        err = fmt.Errorf("destination for localfiles is not a directory")

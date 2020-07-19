@@ -35,15 +35,22 @@ func identify(f *os.File) (kind int, size int64, err error) {
 
 func ingestoriginaldir(f *os.File, sector int64, files map[string][]byte) (outfiles map[string][]byte, err error){
 	var hp oxfsgo.OBFS_DirPage	
+        
 
-
-        _,err = f.Seek((sector/29)-1,0)
+        _,err = f.Seek(((sector/29)-1)*1024,0)
         if err == nil {
-                binary.Read(f, binary.LittleEndian, &hp)
+                err = binary.Read(f, binary.LittleEndian, &hp)
         }
         if err == nil {
-
-		fmt.Println("ingesting dirpage",sector,"mark",hp.Mark)
+	        if hp.P0 != 0{
+			files, err = ingestoriginaldir(f,int64(hp.P0),files)
+		}
+		for i:=int32(0);i<hp.M;i++{
+			fmt.Println("file",string(hp.E[i].Name[:]))
+			if hp.E[i].P != 0 {	
+				files, err = ingestoriginaldir(f,int64(hp.E[i].P),files)
+			}
+		}
 	}
 	return files, err
 }
@@ -57,7 +64,7 @@ func ingestextendeddir(f *os.File, sector int64, files map[string][]byte) (outfi
                 binary.Read(f, binary.LittleEndian, &hp)
         }
         if err == nil {
-                fmt.Println("ingesting dirpage",sector,"mark",hp.Mark)
+                fmt.Println("ingesting dirpage",sector,"mark",hp.Mark,"count",hp.M)
 
         }
         return files, err

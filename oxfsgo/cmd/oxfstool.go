@@ -21,6 +21,11 @@ type  ofile struct {
 	Data   []byte	
 }
 
+type iblock struct {
+	A	int64
+	E	[256] uint32
+}
+
 func identify(f *os.File) (kind int, size int64, err error) {
 	fi, err := f.Stat()
 	if err == nil {
@@ -41,7 +46,7 @@ func identify(f *os.File) (kind int, size int64, err error) {
 }
 
 
-func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblkn uint64, iblk []byte)(block []byte, oiblkn uint64, oiblk []byte, err error){
+func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk *iblock)(block []byte, err error){
 	block = make([]byte, 1024)
 	if e < oxfsgo.OBFS_SecTabSize {
 	        _,err = f.Seek((int64(fp.Sec[e])/29-1)*1024,0)
@@ -49,16 +54,34 @@ func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk
 	                _, err = f.Read(block)	
 		}
 	}else{
-		fmt.Print("!")
+		x:=e-oxfsgo.OBFS_SecTabSize
+		i:=int64(fp.Ext[x/256])
+		r:=x%256
+		if iblk.A == i {
+//			fmt.Print("!")
+		}else{
+//			fmt.Print("?")
+			iblk.A=i
+	                _,err = f.Seek((iblk.A/29-1)*1024,0)
+	                if err == nil {
+				err = binary.Read(f, binary.LittleEndian, iblk.E)
+	                }
+		}
+                if err == nil {
+                        _,err = f.Seek((int64(iblk.E[r])/29-1)*1024,0)
+                }
+                if err == nil {
+                	_, err = f.Read(block)
+                }
 	}
 
-	return block, iblkn, iblk, err
+	return block, err
 }
 
 func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
         var fp oxfsgo.OBFS_FileHeader
-	var iblkn uint64
-	var iblk,block []byte
+	var iblk iblock
+	var block []byte
 
 	const offset = 1024-oxfsgo.OBFS_HeaderSize
 	
@@ -78,15 +101,16 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
 		copy(fe.Data[0:sz],fp.Fill[:])
 		e:=uint64(1)
 		for i:=uint64(offset); i < fe.Length; i=i+1024 {
-			block,iblkn,iblk,err=getOriginalDataBlock(f,e,&fp,iblkn,iblk)
-			if e*1024+(offset)<=fe.Length{
+			block,err=getOriginalDataBlock(f,e,&fp,&iblk)
+			if e*1024+offset<=fe.Length{
 				copy(fe.Data[i:i+1024],block)
 			}else{
-				fmt.Print(".")
+				sz =  fe.Length-i
+				copy(fe.Data[i:i+sz],block[0:sz])
 			}
 			e++
 		}
-		fmt.Println()
+//		fmt.Println()
 	}
 	return fe, err
 }
@@ -183,6 +207,7 @@ func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
 		
 		for _, k := range keys {
 			fmt.Println(k, files[k].Date,files[k].Length)
+//			fmt.Println(string(files[k].Data))
 		}
 
 
@@ -203,34 +228,51 @@ func main() {
         outPtr := flag.String("o", "", "output disk image")
 	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
 	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")	
-	o2Ptr := flag.Bool("o2x", false, "convert from original to extended format")	
-        x2Ptr := flag.Bool("x2o", false, "convert from extended to original format")
+	o2xPtr := flag.Bool("o2x", false, "convert from original to extended format")	
+        x2oPtr := flag.Bool("x2o", false, "convert from extended to original format")
+        o2fPtr := flag.Bool("o2f", false, "convert from original to local files")
+        x2fPtr := flag.Bool("x2f", false, "convert from extended to local files")
+        f2xPtr := flag.Bool("f2x", false, "convert from local files to extended format")
+        f2oPtr := flag.Bool("f2o", false, "convert from local files to original format")
         checkPtr := flag.Bool("check", false, "check a disk image")
 
 	flag.Parse()
 
-	if ((*o2Ptr && (! *x2Ptr)) || (*x2Ptr && (! *o2Ptr))) && (! *checkPtr) {
+	c:=0
+	if *o2xPtr { c++; }
+        if *x2oPtr { c++; }
+        if *o2fPtr { c++; }
+        if *x2fPtr { c++; }
+        if *f2oPtr { c++; }
+        if *f2xPtr { c++; }
+        if *checkPtr { c++; }
+
+	if c != 1 {
+                fmt.Println("specify one of o2x, x2o, o2f, x2f, f2o, f2x, or check")
+                flag.PrintDefaults()
+                os.Exit(1)
+	}else if (*o2xPtr || *x2oPtr || *o2fPtr || *x2fPtr ) {
 		if (*inPtr == "") || (*outPtr == ""){
                         fmt.Println("input and output disk images must be specified")
 			flag.PrintDefaults()
                         os.Exit(1)
 		}else{
-			if *o2Ptr {
+			if *o2xPtr {
 	        		fmt.Println("converting original format file system",*inPtr,"to extended format file system",*outPtr,"target size",*sizePtr)
 			}else{
                                 fmt.Println("converting extended format file system",*inPtr,"to original format file system",*outPtr,"target size",*sizePtr)
 			}
-			if _,err:=ingestFS(*inPtr,*o2Ptr); err != nil {
+			if _,err:=ingestFS(*inPtr,*o2xPtr); err != nil {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{
-				if err=producefs(*outPtr,*x2Ptr,*forcePtr); err != nil {
+				if err=producefs(*outPtr,*x2oPtr,*forcePtr); err != nil {
                                 	fmt.Println(err)
 	                                os.Exit(1)
 				}
                         }
 		}
-	}else if (! *o2Ptr) && (! *x2Ptr) && *checkPtr {
+	}else if *checkPtr {
                 if (*inPtr == "") || (*outPtr == ""){   
                         fmt.Println("input disk image must be specified")
                         flag.PrintDefaults()
@@ -238,10 +280,6 @@ func main() {
                 }else{
 	                fmt.Println("Checking:", *inPtr)
 		}
-	}else{
-                fmt.Println("specify one of o2x, x2o, or check")
-                flag.PrintDefaults()
-                os.Exit(1)
 	}
 
 }

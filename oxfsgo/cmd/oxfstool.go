@@ -54,10 +54,17 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
 	return fe, err
 }
 
-func ingestOriginalKernelImage(f *os.File)(kernel []byte, err error){
+func ingestOriginalBootImage(f *os.File)(kernel []byte, err error){
 
 	return nil,err
 }
+
+
+func ingestExtendedBootImage(f *os.File)(kernel []byte, err error){
+
+        return nil,err
+}
+
 
 func ingestOriginalDir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
 	var dp oxfsgo.OBFS_DirPage	
@@ -119,7 +126,11 @@ func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
 		}
         }
         if err == nil{
-		_,err=ingestOriginalKernelImage(f)
+                if origfmt {
+			_,err=ingestOriginalBootImage(f)
+                }else{
+                        _,err=ingestExtendedBootImage(f)
+		}
         }
         if err == nil{
  		if origfmt {
@@ -127,10 +138,6 @@ func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
 		}else{
                         files, err = ingestExtendedDir(f,29,files)
 		}
-	//	for i,e := range files {
-	//		fmt.Println(i,e.Date,e.Length)
-	//	}
-
 		keys := make([]string, 0, len(files))
 		for k := range files {
 			keys = append(keys, k)

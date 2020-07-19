@@ -14,6 +14,12 @@ const   PADDEDORIGINAL =  2
 const   EXTENDED =  3
 const   PADDEDEXTENDED =  4
 
+type  ofile struct {
+	Length uint64
+	Date   uint64
+	Data   []byte	
+}
+
 func identify(f *os.File) (kind int, size int64, err error) {
 	fi, err := f.Stat()
 	if err == nil {
@@ -33,7 +39,7 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func ingestoriginaldir(f *os.File, sector int64, files map[string][]byte) (outfiles map[string][]byte, err error){
+func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
 	var hp oxfsgo.OBFS_DirPage	
         
 
@@ -55,7 +61,7 @@ func ingestoriginaldir(f *os.File, sector int64, files map[string][]byte) (outfi
 	return files, err
 }
 
-func ingestextendeddir(f *os.File, sector int64, files map[string][]byte) (outfiles map[string][]byte, err error){
+func ingestextendeddir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
         var hp *oxfsgo.OXFS_DirPage
 
 
@@ -72,11 +78,11 @@ func ingestextendeddir(f *os.File, sector int64, files map[string][]byte) (outfi
 
 
 
-func ingestfs(filename string, origfmt bool)(files map[string][]byte, err error){
+func ingestfs(filename string, origfmt bool)(files map[string]ofile, err error){
 	var f *os.File
 	var kind  int
 
-	files = make(map[string][]byte)
+	files = make(map[string]ofile)
 
 	_, err = os.Stat(filename)
 	if err == nil {

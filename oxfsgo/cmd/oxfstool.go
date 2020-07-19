@@ -119,9 +119,29 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
 	return fe, err
 }
 
-func ingestOriginalBootImage(f *os.File)(kernel []byte, err error){
+func ingestOriginalBootImage(f *os.File)(fe ofile, err error){
+	var sz int
+        block := make([]byte, 1024)
+        _,err = f.Seek(1024,0)
+        if err == nil {
+                _, err = f.Read(block)
+	}
+        if err == nil {
+		sz = int(block[16])+(int(block[17])*0x100)+(int(block[18])*0x10000)+(int(block[19])*0x1000000)
+		_,err = f.Seek(1024,0)
+        }
+        if err == nil {
+		fmt.Println("Boot Image Size:",sz)
+		block = make([]byte, sz)
+                _, err = f.Read(block)
+        }
+        if err == nil {
 
-	return nil,err
+                fe.Date=0
+                fe.Length=uint64(sz)
+                fe.Data=block
+	}
+	return fe,err
 }
 
 
@@ -174,6 +194,7 @@ func ingestExtendedDir(f *os.File, sector int64, files map[string]ofile) (outfil
 func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 	var f *os.File
 	var kind  int
+	
 
 	files = make(map[string]ofile)
 
@@ -192,7 +213,8 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
         }
         if err == nil{
                 if infmt == ORIGINAL {
-			_,err=ingestOriginalBootImage(f)
+			files["_BOOTIMAGE_"],err=ingestOriginalBootImage(f)
+			
                 }else{
                         _,err=ingestExtendedBootImage(f)
 		}
@@ -229,17 +251,18 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 			  	err = staterr
 			  case fs.IsDir():
 			        for _, k := range keys {
-			                fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
+				   if err == nil {
+//			                fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
 //      	        		fmt.Println(string(files[k].Data))
 					fname:=name+"/"+k
 					fw, err := os.Create( strings.Replace(fname, "\x00", "", -1))
 					if err == nil {
 						_, err = fw.Write(files[k].Data)
 					}else{
-						fmt.Println(err)
+//						fmt.Println(err)
 					}
 					fw.Close()
-
+				   }
 			        }
 	                  default:
 	                        err = fmt.Errorf("destination for localfiles is not a directory")

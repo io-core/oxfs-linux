@@ -9,11 +9,14 @@ import (
   "github.com/io-core/oxfs-linux/oxfsgo"
 )
 
-const	UNKNOWN = 0
-const   ORIGINAL =  1
-const   PADDEDORIGINAL =  2
-const   EXTENDED =  3
-const   PADDEDEXTENDED =  4
+const (
+	UNKNOWN = iota
+	ORIGINAL 
+	PADDEDORIGINAL 
+	EXTENDED 
+	PADDEDEXTENDED 
+	LOCALFILES 
+)
 
 type  ofile struct {
 	Length uint64
@@ -167,7 +170,7 @@ func ingestExtendedDir(f *os.File, sector int64, files map[string]ofile) (outfil
 
 
 
-func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
+func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 	var f *os.File
 	var kind  int
 
@@ -182,19 +185,19 @@ func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
 		kind,_,err = identify(f)
 	}
 	if err == nil{		
-		if !(((kind == ORIGINAL) && origfmt ) || ((kind == EXTENDED) && (! origfmt) )){
+		if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) || ((kind == EXTENDED) && (infmt == EXTENDED) )){
 			err = fmt.Errorf("wrong format for input disk image %s",filename)
 		}
         }
         if err == nil{
-                if origfmt {
+                if infmt == ORIGINAL {
 			_,err=ingestOriginalBootImage(f)
                 }else{
                         _,err=ingestExtendedBootImage(f)
 		}
         }
         if err == nil{
- 		if origfmt {
+ 		if infmt == ORIGINAL {
 			files, err = ingestOriginalDir(f,29,files)
 		}else{
                         files, err = ingestExtendedDir(f,29,files)
@@ -216,7 +219,7 @@ func ingestFS(filename string, origfmt bool)(files map[string]ofile, err error){
 	return files,err
 }
 
-func producefs(image string, original, force bool)(err error){
+func producefs(image string, outfmt int, force bool)(err error){
         err = fmt.Errorf("produce function not implemented")
 
         return err
@@ -226,7 +229,7 @@ func main() {
 
         inPtr := flag.String("i", "", "input disk image")
         outPtr := flag.String("o", "", "output disk image")
-	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
+//	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
 	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")	
 	o2xPtr := flag.Bool("o2x", false, "convert from original to extended format")	
         x2oPtr := flag.Bool("x2o", false, "convert from extended to original format")
@@ -238,13 +241,15 @@ func main() {
 
 	flag.Parse()
 
+	infmt := UNKNOWN
+	outfmt := UNKNOWN
 	c:=0
-	if *o2xPtr { c++; }
-        if *x2oPtr { c++; }
-        if *o2fPtr { c++; }
-        if *x2fPtr { c++; }
-        if *f2oPtr { c++; }
-        if *f2xPtr { c++; }
+	if *o2xPtr { c++; infmt = ORIGINAL; outfmt = EXTENDED; }
+        if *x2oPtr { c++; infmt = EXTENDED; outfmt = ORIGINAL; }
+        if *o2fPtr { c++; infmt = ORIGINAL; outfmt = LOCALFILES; }
+        if *x2fPtr { c++; infmt = EXTENDED; outfmt = LOCALFILES; }
+        if *f2oPtr { c++; infmt = LOCALFILES; outfmt = ORIGINAL; }
+        if *f2xPtr { c++; infmt = LOCALFILES; outfmt = EXTENDED; }
         if *checkPtr { c++; }
 
 	if c != 1 {
@@ -253,20 +258,15 @@ func main() {
                 os.Exit(1)
 	}else if (*o2xPtr || *x2oPtr || *o2fPtr || *x2fPtr ) {
 		if (*inPtr == "") || (*outPtr == ""){
-                        fmt.Println("input and output disk images must be specified")
+                        fmt.Println("input and output image or location must be specified")
 			flag.PrintDefaults()
                         os.Exit(1)
 		}else{
-			if *o2xPtr {
-	        		fmt.Println("converting original format file system",*inPtr,"to extended format file system",*outPtr,"target size",*sizePtr)
-			}else{
-                                fmt.Println("converting extended format file system",*inPtr,"to original format file system",*outPtr,"target size",*sizePtr)
-			}
-			if _,err:=ingestFS(*inPtr,*o2xPtr); err != nil {
+			if _,err:=ingestFS(*inPtr, infmt); err != nil {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{
-				if err=producefs(*outPtr,*x2oPtr,*forcePtr); err != nil {
+				if err=producefs(*outPtr, outfmt, *forcePtr); err != nil {
                                 	fmt.Println(err)
 	                                os.Exit(1)
 				}

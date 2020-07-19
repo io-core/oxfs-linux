@@ -4,6 +4,7 @@ import (
   "fmt"
   "flag"
   "os"
+  "sort"
   "encoding/binary"
   "github.com/io-core/oxfs-linux/oxfsgo"
 )
@@ -53,6 +54,11 @@ func ingestoriginalfile(f *os.File, sector int64)(fe ofile, err error){
 	return fe, err
 }
 
+func ingestkernelimage(f *os.File)(kernel []byte, err error){
+
+	return nil,err
+}
+
 func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
 	var dp oxfsgo.OBFS_DirPage	
         
@@ -66,7 +72,7 @@ func ingestoriginaldir(f *os.File, sector int64, files map[string]ofile) (outfil
 			files, err = ingestoriginaldir(f,int64(dp.P0),files)
 		}
 		for i:=int32(0);i<dp.M;i++{
-			fmt.Println("file",string(dp.E[i].Name[:]))
+//			fmt.Println("file",string(dp.E[i].Name[:]))
 			files[string(dp.E[i].Name[:])],err=ingestoriginalfile(f,int64(dp.E[i].Adr))
 			if dp.E[i].P != 0 {	
 				files, err = ingestoriginaldir(f,int64(dp.E[i].P),files)
@@ -111,11 +117,32 @@ func ingestfs(filename string, origfmt bool)(files map[string]ofile, err error){
 		if !(((kind == ORIGINAL) && origfmt ) || ((kind == EXTENDED) && (! origfmt) )){
 			err = fmt.Errorf("wrong format for input disk image %s",filename)
 		}
-		if origfmt {
+        }
+        if err == nil{
+		_,err=ingestkernelimage(f)
+        }
+        if err == nil{
+ 		if origfmt {
 			files, err = ingestoriginaldir(f,29,files)
 		}else{
                         files, err = ingestextendeddir(f,29,files)
 		}
+	//	for i,e := range files {
+	//		fmt.Println(i,e.Date,e.Length)
+	//	}
+
+		keys := make([]string, 0, len(files))
+		for k := range files {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		
+		for _, k := range keys {
+			fmt.Println(k, files[k].Date,files[k].Length)
+		}
+
+
+
 	}
 	return files,err
 }

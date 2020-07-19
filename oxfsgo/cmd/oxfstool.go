@@ -19,6 +19,8 @@ const (
 	LOCALFILES 
 )
 
+const PADOFFSET = (524288*512)+1024
+
 type  ofile struct {
 	Length uint64
 	Date   uint64
@@ -45,15 +47,31 @@ func identify(f *os.File) (kind int, size int64, err error) {
                 if binary.LittleEndian.Uint32(buf) == oxfsgo.OXFS_DirMark {
                         kind = EXTENDED
 		}
+		if kind == UNKNOWN {
+                	_,err = f.Seek(PADOFFSET,0)
+		}
+	        if err == nil {
+	                _, err = f.Read(buf)
+                }
+                if err == nil {
+	                if binary.LittleEndian.Uint32(buf) == oxfsgo.OBFS_DirMark {
+	                        kind = PADDEDORIGINAL
+				size = size - (PADOFFSET)
+	                }
+	                if binary.LittleEndian.Uint32(buf) == oxfsgo.OXFS_DirMark {
+	                        kind = PADDEDEXTENDED
+                                size = size - (PADOFFSET)
+	                }
+		}
 	}
 	return kind, size, err
 }
 
 
-func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk *iblock)(block []byte, err error){
+func getOriginalDataBlock(f *os.File, pad int64, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk *iblock)(block []byte, err error){
 	block = make([]byte, 1024)
 	if e < oxfsgo.OBFS_SecTabSize {
-	        _,err = f.Seek((int64(fp.Sec[e])/29-1)*1024,0)
+	        _,err = f.Seek(pad + (int64(fp.Sec[e])/29-1)*1024,0)
 	        if err == nil {
 	                _, err = f.Read(block)	
 		}
@@ -66,13 +84,13 @@ func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk
 		}else{
 //			fmt.Print("?")
 			iblk.A=i
-	                _,err = f.Seek((iblk.A/29-1)*1024,0)
+	                _,err = f.Seek(pad + (iblk.A/29-1)*1024,0)
 	                if err == nil {
 				err = binary.Read(f, binary.LittleEndian, iblk.E)
 	                }
 		}
                 if err == nil {
-                        _,err = f.Seek((int64(iblk.E[r])/29-1)*1024,0)
+                        _,err = f.Seek(pad + (int64(iblk.E[r])/29-1)*1024,0)
                 }
                 if err == nil {
                 	_, err = f.Read(block)
@@ -82,7 +100,7 @@ func getOriginalDataBlock(f *os.File, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk
 	return block, err
 }
 
-func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
+func ingestOriginalFile(f *os.File, pad int64, sector int64)(fe ofile, err error){
         var fp oxfsgo.OBFS_FileHeader
 	var iblk iblock
 	var block []byte
@@ -90,7 +108,7 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
 	const offset = 1024-oxfsgo.OBFS_HeaderSize
 	
 
-        _,err = f.Seek(((sector/29)-1)*1024,0)
+        _,err = f.Seek(pad + ((sector/29)-1)*1024,0)
         if err == nil {
                 err = binary.Read(f, binary.LittleEndian, &fp)
         }
@@ -105,7 +123,7 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
 		copy(fe.Data[0:sz],fp.Fill[:])
 		e:=uint64(1)
 		for i:=uint64(offset); i < fe.Length; i=i+1024 {
-			block,err=getOriginalDataBlock(f,e,&fp,&iblk)
+			block,err=getOriginalDataBlock(f,pad,e,&fp,&iblk)
 			if e*1024+offset<=fe.Length{
 				copy(fe.Data[i:i+1024],block)
 			}else{
@@ -119,16 +137,16 @@ func ingestOriginalFile(f *os.File, sector int64)(fe ofile, err error){
 	return fe, err
 }
 
-func ingestOriginalBootImage(f *os.File)(fe ofile, err error){
+func ingestOriginalBootImage(f *os.File, pad int64)(fe ofile, err error){
 	var sz int
         block := make([]byte, 1024)
-        _,err = f.Seek(1024,0)
+        _,err = f.Seek(pad + 1024,0)
         if err == nil {
                 _, err = f.Read(block)
 	}
         if err == nil {
 		sz = int(block[16])+(int(block[17])*0x100)+(int(block[18])*0x10000)+(int(block[19])*0x1000000)
-		_,err = f.Seek(1024,0)
+		_,err = f.Seek(pad + 1024,0)
         }
         if err == nil {
 		fmt.Println("Boot Image Size:",sz)
@@ -145,40 +163,40 @@ func ingestOriginalBootImage(f *os.File)(fe ofile, err error){
 }
 
 
-func ingestExtendedBootImage(f *os.File)(kernel []byte, err error){
+func ingestExtendedBootImage(f *os.File, pad int64)(kernel []byte, err error){
 
         return nil,err
 }
 
 
-func ingestOriginalDir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
+func ingestOriginalDir(f *os.File, pad int64, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
 	var dp oxfsgo.OBFS_DirPage	
         
 
-        _,err = f.Seek(((sector/29)-1)*1024,0)
+        _,err = f.Seek(pad + ((sector/29)-1)*1024,0)
         if err == nil {
                 err = binary.Read(f, binary.LittleEndian, &dp)
         }
         if err == nil {
 	        if dp.P0 != 0{
-			files, err = ingestOriginalDir(f,int64(dp.P0),files)
+			files, err = ingestOriginalDir(f,pad,int64(dp.P0),files)
 		}
 		for i:=int32(0);i<dp.M;i++{
 //			fmt.Println("file",string(dp.E[i].Name[:]))
-			files[string(dp.E[i].Name[:])],err=ingestOriginalFile(f,int64(dp.E[i].Adr))
+			files[string(dp.E[i].Name[:])],err=ingestOriginalFile(f,pad,int64(dp.E[i].Adr))
 			if dp.E[i].P != 0 {	
-				files, err = ingestOriginalDir(f,int64(dp.E[i].P),files)
+				files, err = ingestOriginalDir(f,pad,int64(dp.E[i].P),files)
 			}
 		}
 	}
 	return files, err
 }
 
-func ingestExtendedDir(f *os.File, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
+func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
         var dp *oxfsgo.OXFS_DirPage
 
 
-        _,err = f.Seek((sector/29)-1,0)
+        _,err = f.Seek(pad + (sector/29)-1,0)
         if err == nil {
                 binary.Read(f, binary.LittleEndian, &dp)
         }
@@ -194,6 +212,7 @@ func ingestExtendedDir(f *os.File, sector int64, files map[string]ofile) (outfil
 func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 	var f *os.File
 	var kind  int
+	var pad int64
 	
 
 	files = make(map[string]ofile)
@@ -205,25 +224,34 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 	if err == nil{
 		defer f.Close()
 		kind,_,err = identify(f)
+		if kind == PADDEDORIGINAL || kind == PADDEDEXTENDED {
+			pad = PADOFFSET
+		}
 	}
 	if err == nil{		
-		if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) || ((kind == EXTENDED) && (infmt == EXTENDED) )){
+		if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) || 
+		     ((kind == EXTENDED) && (infmt == EXTENDED) ) ||  
+		     ((kind == PADDEDORIGINAL) && (infmt==ORIGINAL) ) || 
+                     ((kind == PADDEDEXTENDED) && (infmt == EXTENDED) )   ){
 			err = fmt.Errorf("wrong format for input disk image %s",filename)
 		}
         }
+
+	
+
         if err == nil{
                 if infmt == ORIGINAL {
-			files["_BOOTIMAGE_"],err=ingestOriginalBootImage(f)
+			files["_BOOTIMAGE_"],err=ingestOriginalBootImage(f,pad)
 			
                 }else{
-                        _,err=ingestExtendedBootImage(f)
+                        _,err=ingestExtendedBootImage(f,pad)
 		}
         }
         if err == nil{
  		if infmt == ORIGINAL {
-			files, err = ingestOriginalDir(f,29,files)
+			files, err = ingestOriginalDir(f,pad,29,files)
 		}else{
-                        files, err = ingestExtendedDir(f,29,files)
+                        files, err = ingestExtendedDir(f,pad,29,files)
 		}
 	}
 	return files,err

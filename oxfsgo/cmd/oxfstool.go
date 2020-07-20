@@ -7,6 +7,8 @@ import (
   "sort"
   "strings"
   "encoding/binary"
+//  "path"
+  "path/filepath"
   "github.com/io-core/oxfs-linux/oxfsgo"
 )
 
@@ -207,13 +209,36 @@ func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofi
         return files, err
 }
 
+func visit(fnames *[]string) filepath.WalkFunc {
+    return func(path string, info os.FileInfo, err error) error {
+        if err != nil {
+//            log.Fatal(err)
+        }
+        *fnames = append(*fnames, path)
+        return nil
+    }
+}
 
+func ingestFromFile(filename string)(fi ofile, err error){
+        var f *os.File
+        _, err = os.Stat(filename)
+        if err == nil {
+                f, err = os.Open(filename)
+        }
+        if err == nil {
+	        fs, _ := f.Stat()
+                fi.Length = uint64(fs.Size())
+	        fi.Data = make([]byte, fi.Length)
+                _, err = f.Read(fi.Data)
+        }
+	return fi, err 
+}
 
 func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 	var f *os.File
 	var kind  int
 	var pad int64
-	
+	var fnames []string	
 
 	files = make(map[string]ofile)
 
@@ -221,38 +246,57 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 	if err == nil {
 	        f, err = os.Open(filename)
         }
-	if err == nil{
-		defer f.Close()
-		kind,_,err = identify(f)
-		if kind == PADDEDORIGINAL || kind == PADDEDEXTENDED {
-			pad = PADOFFSET
-		}
-	}
-	if err == nil{		
-		if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) || 
-		     ((kind == EXTENDED) && (infmt == EXTENDED) ) ||  
-		     ((kind == PADDEDORIGINAL) && (infmt==ORIGINAL) ) || 
-                     ((kind == PADDEDEXTENDED) && (infmt == EXTENDED) )   ){
-			err = fmt.Errorf("wrong format for input disk image %s",filename)
-		}
-        }
+        if err == nil{
+                defer f.Close()
+                fs, _ := f.Stat()
+                        switch mode := fs.Mode(); {
+                          case mode.IsDir():
+				pre:=len(filename)
+				err = filepath.Walk(filename, visit(&fnames))
+				for _, fn := range fnames {
+					//_, file := path.Split(fn)
+					if len(fn)>pre+1{
+						fmt.Println(fn[pre+1:])
+						files[fn[pre+1:]],err=ingestFromFile(fn)
+					}
+				}
+                                //                err = fmt.Errorf("don't know how to read directory %s",filename)
+ 
+                          case mode.IsRegular():
+
+				if err == nil{
+					kind,_,err = identify(f)
+					if kind == PADDEDORIGINAL || kind == PADDEDEXTENDED {
+						pad = PADOFFSET
+					}
+				}
+				if err == nil{		
+					if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) || 
+					     ((kind == EXTENDED) && (infmt == EXTENDED) ) ||  
+					     ((kind == PADDEDORIGINAL) && (infmt==ORIGINAL) ) || 
+			                     ((kind == PADDEDEXTENDED) && (infmt == EXTENDED) )   ){
+						err = fmt.Errorf("wrong format for input disk image %s",filename)
+					}
+			        }
 
 	
 
-        if err == nil{
-                if infmt == ORIGINAL {
-			files["_BOOTIMAGE_"],err=ingestOriginalBootImage(f,pad)
-			
-                }else{
-                        _,err=ingestExtendedBootImage(f,pad)
-		}
-        }
-        if err == nil{
- 		if infmt == ORIGINAL {
-			files, err = ingestOriginalDir(f,pad,29,files)
-		}else{
-                        files, err = ingestExtendedDir(f,pad,29,files)
-		}
+			        if err == nil{
+			                if infmt == ORIGINAL {
+						files["_BOOTIMAGE_"],err=ingestOriginalBootImage(f,pad)
+						
+			                }else{
+			                        _,err=ingestExtendedBootImage(f,pad)
+					}
+			        }
+			        if err == nil{
+			 		if infmt == ORIGINAL {
+						files, err = ingestOriginalDir(f,pad,29,files)
+					}else{
+			                        files, err = ingestExtendedDir(f,pad,29,files)
+					}
+				}
+			}
 	}
 	return files,err
 }
@@ -332,7 +376,7 @@ func main() {
                 fmt.Println("specify one of o2x, x2o, o2f, x2f, f2o, f2x, or check")
                 flag.PrintDefaults()
                 os.Exit(1)
-	}else if (*o2xPtr || *x2oPtr || *o2fPtr || *x2fPtr ) {
+	}else if (*o2xPtr || *x2oPtr || *o2fPtr || *x2fPtr || *f2oPtr || *f2xPtr) {
 		if (*inPtr == "") || (*outPtr == ""){
                         fmt.Println("input and output image or location must be specified")
 			flag.PrintDefaults()

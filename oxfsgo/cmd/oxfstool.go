@@ -34,6 +34,12 @@ type iblock struct {
 	E	[256] uint32
 }
 
+type dirTree struct {
+	P0 *dirTree
+	Name []string
+	P []*dirTree
+}
+
 func identify(f *os.File) (kind int, size int64, err error) {
 	fi, err := f.Stat()
 	if err == nil {
@@ -69,6 +75,149 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
+func fillDirPageSet( fileSet []string, dirPageSet []oxfsgo.OBFS_DirPage, files map[string]ofile, nextFree int64, outfmt int) * dirTree{
+	var dT dirTree	
+	c:=len(fileSet)
+	n:=oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2)
+	if c>n {
+		sz:=c/(n+1)
+		fmt.Println("sz:",sz)
+		dT.Name = make([]string, n)
+		dT.P = make([]*dirTree, n)
+                
+		dT.P0=fillDirPageSet(fileSet[0:sz],dirPageSet[:],files,20*29,outfmt)
+		for i:=1;i<=n;i++{
+			e:=i*sz
+		        fmt.Println("*",fileSet[e])
+			dT.Name[i-1]=fileSet[e]
+			z:=(i+1)*sz
+			if i==n {
+				z=c
+			}
+			dT.P[i-1]=fillDirPageSet(fileSet[e+1:z],dirPageSet[:],files,20*29,outfmt)
+		}
+	}else{
+		for e:=0;e<c;e++{
+	                dT.Name = make([]string, c)
+	                dT.P = make([]*dirTree, c)
+			fmt.Println(fileSet[e])
+		}
+	}	
+
+
+	return &dT
+}
+
+
+func createDirTree( files map[string]ofile, outfmt int) (dirTree string){
+	var nA []string
+	var dS []oxfsgo.OBFS_DirPage
+
+	if _, ok := files["_BOOTIMAGE_"]; ok {
+		nA = make([]string, len(files)-1)	
+		dS = make([]oxfsgo.OBFS_DirPage, len(files)-1)
+	}else{
+                nA = make([]string, len(files))
+                dS = make([]oxfsgo.OBFS_DirPage, len(files))
+	}
+	i:=0
+	for fn, _ := range files {
+		if fn != "_BOOTIMAGE_" {
+			nA[i]=fn
+			i++
+		}
+	}
+
+	rnA := nA[:]
+	sort.Strings(rnA)
+
+	_ = fillDirPageSet(rnA[:],dS[:],files,20*29,outfmt)
+
+	
+
+	
+	return dirTree
+}
+
+func producefs(name string, files map[string]ofile, outfmt int, force bool)(err error){
+	var fi *os.File
+        keys := make([]string, 0, len(files))
+        for k := range files {
+                keys = append(keys, k)
+        }
+        sort.Strings(keys)
+
+	if outfmt != LOCALFILES{
+
+                fi, err = os.Open(name)
+		if err != nil{ // assume because file does not exist
+			err = nil
+                }else{
+                        fs, staterr := fi.Stat()
+                        fi.Close()
+                        switch {
+                          case staterr != nil:
+                                err = staterr
+                          case fs.IsDir():
+                                err = fmt.Errorf("destination disk image is a directory")
+                          default:
+                                err = fmt.Errorf("destination disk image already exists")
+                        }
+                }
+		if err == nil {
+			fw, err := os.Create( name )
+			if err == nil {
+				defer fw.Close()
+				createDirTree(files,outfmt)
+                                for _, k := range keys {
+					if err == nil {
+						if k == "_BOOTIMAGE_" {
+						}else{
+//                                   if err == nil {
+////                                      fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
+////                                      fmt.Println(string(files[k].Data))
+//                                        fname:=name+"/"+k
+//                                        fw, err := os.Create( strings.Replace(fname, "\x00", "", -1))
+//                                        if err == nil {
+//                                                _, err = fw.Write(files[k].Data)
+//                                        }else{
+////                                              fmt.Println(err)
+//                                        }
+//                                       
+//                                   }
+						}
+					}	
+                                }
+			}
+
+		}
+	}else{
+		fi, err = os.Open(name)
+	        if err == nil{
+			fs, staterr := fi.Stat()
+			fi.Close()
+			switch {
+			  case staterr != nil:
+			  	err = staterr
+			  case fs.IsDir():
+			        for _, k := range keys {
+				   if err == nil {
+					fname:=name+"/"+k
+					fw, err := os.Create( strings.Replace(fname, "\x00", "", -1))
+					if err == nil {
+						_, err = fw.Write(files[k].Data)
+					}
+					fw.Close()
+				   }
+			        }
+	                  default:
+	                        err = fmt.Errorf("destination for localfiles is not a directory")
+	                }
+		}
+	}
+
+        return err
+}
 
 func getOriginalDataBlock(f *os.File, pad int64, e uint64, fp *oxfsgo.OBFS_FileHeader, iblk *iblock)(block []byte, err error){
 	block = make([]byte, 1024)
@@ -299,50 +448,6 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 			}
 	}
 	return files,err
-}
-
-func producefs(name string, files map[string]ofile, outfmt int, force bool)(err error){
-	var fi *os.File
-        keys := make([]string, 0, len(files))
-        for k := range files {
-                keys = append(keys, k)
-        }
-        sort.Strings(keys)
-
-	if outfmt == ORIGINAL{
-		err = fmt.Errorf("produce ORIGINAL not implemented")
-	}else if outfmt == EXTENDED{
-		err = fmt.Errorf("produce EXTENDED not implemented")
-	}else if outfmt == LOCALFILES{
-		fi, err = os.Open(name)
-	        if err == nil{
-			fs, staterr := fi.Stat()
-			fi.Close()
-			switch {
-			  case staterr != nil:
-			  	err = staterr
-			  case fs.IsDir():
-			        for _, k := range keys {
-				   if err == nil {
-//			                fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
-//      	        		fmt.Println(string(files[k].Data))
-					fname:=name+"/"+k
-					fw, err := os.Create( strings.Replace(fname, "\x00", "", -1))
-					if err == nil {
-						_, err = fw.Write(files[k].Data)
-					}else{
-//						fmt.Println(err)
-					}
-					fw.Close()
-				   }
-			        }
-	                  default:
-	                        err = fmt.Errorf("destination for localfiles is not a directory")
-	                }
-		}
-	}
-
-        return err
 }
 
 func main() {

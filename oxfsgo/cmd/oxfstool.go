@@ -75,32 +75,32 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func fillDirPageSet( fileSet []string, dirPageSet []oxfsgo.OBFS_DirPage, files map[string]ofile, nextFree int64, outfmt int) * dirTree{
+func fillDirPageSet( fileSet []string, files map[string]ofile, n int) * dirTree{
 	var dT dirTree	
 	c:=len(fileSet)
-	n:=oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2)
+//	n:=oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2)
 	if c>n {
 		sz:=c/(n+1)
 		fmt.Println("sz:",sz)
 		dT.Name = make([]string, n)
 		dT.P = make([]*dirTree, n)
                 
-		dT.P0=fillDirPageSet(fileSet[0:sz],dirPageSet[:],files,20*29,outfmt)
+		dT.P0=fillDirPageSet(fileSet[0:sz],files,n)
 		for i:=1;i<=n;i++{
 			e:=i*sz
-		        fmt.Println("*",fileSet[e])
+//		        fmt.Println("*",fileSet[e])
 			dT.Name[i-1]=fileSet[e]
 			z:=(i+1)*sz
 			if i==n {
 				z=c
 			}
-			dT.P[i-1]=fillDirPageSet(fileSet[e+1:z],dirPageSet[:],files,20*29,outfmt)
+			dT.P[i-1]=fillDirPageSet(fileSet[e+1:z],files,n)
 		}
 	}else{
-		for e:=0;e<c;e++{
-	                dT.Name = make([]string, c)
-	                dT.P = make([]*dirTree, c)
-			fmt.Println(fileSet[e])
+	        dT.Name = make([]string, c)
+	        dT.P = make([]*dirTree, c)
+                for e:=0;e<c;e++{
+			dT.Name[e]=fileSet[e]
 		}
 	}	
 
@@ -108,18 +108,36 @@ func fillDirPageSet( fileSet []string, dirPageSet []oxfsgo.OBFS_DirPage, files m
 	return &dT
 }
 
-
-func createDirTree( files map[string]ofile, outfmt int) (dirTree string){
-	var nA []string
-	var dS []oxfsgo.OBFS_DirPage
-
-	if _, ok := files["_BOOTIMAGE_"]; ok {
-		nA = make([]string, len(files)-1)	
-		dS = make([]oxfsgo.OBFS_DirPage, len(files)-1)
-	}else{
-                nA = make([]string, len(files))
-                dS = make([]oxfsgo.OBFS_DirPage, len(files))
+func produceDir( dT *dirTree, outfmt int, fw *os.File ){
+	if dT.P0 != nil{
+		produceDir( dT.P0, outfmt, fw )
 	}
+	for i, _ := range dT.P{
+		fmt.Println("-- ",dT.Name[i])
+		if dT.P[i] != nil {
+			produceDir( dT.P[i], outfmt, fw )
+		}
+	}
+
+}
+
+
+func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (dirTree string){
+	var nA []string
+//	var dSO []oxfsgo.OBFS_DirPage
+//	var dSX []oxfsgo.OXFS_DirPage
+
+	nE:=len(files)
+	if _, ok := files["_BOOTIMAGE_"]; ok {
+		nE=len(files)-1
+	}
+	nA = make([]string,nE)
+//	if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
+//		dSO = make([]oxfsgo.OBFS_DirPage, nE)
+//	}else{
+//		dSX = make([]oxfsgo.OXFS_DirPage, nE)
+//	}
+
 	i:=0
 	for fn, _ := range files {
 		if fn != "_BOOTIMAGE_" {
@@ -131,9 +149,9 @@ func createDirTree( files map[string]ofile, outfmt int) (dirTree string){
 	rnA := nA[:]
 	sort.Strings(rnA)
 
-	_ = fillDirPageSet(rnA[:],dS[:],files,20*29,outfmt)
+	dT := fillDirPageSet(rnA[:],files,oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2))
 
-	
+	produceDir(dT,outfmt,fw)
 
 	
 	return dirTree
@@ -168,11 +186,11 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 			fw, err := os.Create( name )
 			if err == nil {
 				defer fw.Close()
-				createDirTree(files,outfmt)
-                                for _, k := range keys {
-					if err == nil {
-						if k == "_BOOTIMAGE_" {
-						}else{
+				produceDirTree(files,outfmt,fw)
+//                                for _, k := range keys {
+//					if err == nil {
+//						if k == "_BOOTIMAGE_" {
+//						}else{
 //                                   if err == nil {
 ////                                      fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
 ////                                      fmt.Println(string(files[k].Data))
@@ -185,9 +203,9 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 //                                        }
 //                                       
 //                                   }
-						}
-					}	
-                                }
+//						}
+//					}	
+//                                }
 			}
 
 		}

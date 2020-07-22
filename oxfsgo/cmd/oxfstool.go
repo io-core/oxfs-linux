@@ -106,7 +106,7 @@ func populateDir( fileSet []string, files map[string]ofile, n int) * dirTree{
 	return &dT
 }
 
-func produceDir( dT *dirTree, files map[string]ofile, outfmt int, fw *os.File, nextFree int )(onextFree int, err error){
+func produceDir( dT *dirTree, files map[string]ofile, outfmt int, fw *os.File, nextFree int )( _ int, err error){
 	if dT.P0 != nil{
 		nextFree, err = produceDir( dT.P0, files, outfmt, fw, nextFree )
 	}
@@ -124,6 +124,9 @@ func installBootImage(f *os.File, bootImage []byte, outfmt int)(err error){
                 _,err = f.Seek( 1024,0)
 	}else{
                 _,err = f.Seek( PADOFFSET + 1024,0)
+	}
+	if err != nil {
+		_, err = f.Write(bootImage)
 	}
 	return err
 }
@@ -342,7 +345,7 @@ func ingestOriginalDir(f *os.File, pad int64, sector int64, files map[string]ofi
 	return files, err
 }
 
-func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
+func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofile) ( _ map[string]ofile, err error){
         var dp *oxfsgo.OXFS_DirPage
 
 

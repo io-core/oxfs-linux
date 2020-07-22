@@ -106,29 +106,29 @@ func populateDir( fileSet []string, files map[string]ofile, n int) * dirTree{
 	return &dT
 }
 
-func produceDir( dT *dirTree, files map[string]ofile, outfmt int, fw *os.File ){
+func produceDir( dT *dirTree, files map[string]ofile, outfmt int, fw *os.File, nextFree int )(onextFree int, err error){
 	if dT.P0 != nil{
-		produceDir( dT.P0, files, outfmt, fw )
+		nextFree, err = produceDir( dT.P0, files, outfmt, fw, nextFree )
 	}
 	for i, _ := range dT.P{
 		fmt.Println("-- ",dT.Name[i])
 		if dT.P[i] != nil {
-			produceDir( dT.P[i], files, outfmt, fw )
+			nextFree, err = produceDir( dT.P[i], files, outfmt, fw, nextFree )
 		}
 	}
-
+	return nextFree, err
 }
 
 func installBootImage(f *os.File, bootImage []byte, outfmt int)(err error){
 	if outfmt == ORIGINAL || outfmt == EXTENDED{
-                _,err = f.Seek( 2048,0)
+                _,err = f.Seek( 1024,0)
 	}else{
-                _,err = f.Seek( PADOFFSET + 2048,0)
+                _,err = f.Seek( PADOFFSET + 1024,0)
 	}
 	return err
 }
 
-func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (dirTree string){
+func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (dirTree string, err error){
 	var nA []string
 
 	nE:=len(files)
@@ -151,10 +151,10 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (dirTree st
 
 	dT := populateDir(rnA[:],files,oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2))
 
-	produceDir(dT,files,outfmt,fw)
+	_, err = produceDir(dT,files,outfmt,fw,29)
 
 	
-	return dirTree
+	return dirTree, err
 }
 
 func producefs(name string, files map[string]ofile, outfmt int, force bool)(err error){
@@ -186,7 +186,7 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 			fw, err := os.Create( name )
 			if err == nil {
 				defer fw.Close()
-				produceDirTree(files,outfmt,fw)
+				_, _ = produceDirTree(files,outfmt,fw)
 			}
 
 		}

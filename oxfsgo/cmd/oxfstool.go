@@ -75,26 +75,24 @@ func identify(f *os.File) (kind int, size int64, err error) {
 	return kind, size, err
 }
 
-func fillDirPageSet( fileSet []string, files map[string]ofile, n int) * dirTree{
+func populateDir( fileSet []string, files map[string]ofile, n int) * dirTree{
 	var dT dirTree	
 	c:=len(fileSet)
-//	n:=oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2)
 	if c>n {
 		sz:=c/(n+1)
 		fmt.Println("sz:",sz)
 		dT.Name = make([]string, n)
 		dT.P = make([]*dirTree, n)
                 
-		dT.P0=fillDirPageSet(fileSet[0:sz],files,n)
+		dT.P0=populateDir(fileSet[0:sz],files,n)
 		for i:=1;i<=n;i++{
 			e:=i*sz
-//		        fmt.Println("*",fileSet[e])
 			dT.Name[i-1]=fileSet[e]
 			z:=(i+1)*sz
 			if i==n {
 				z=c
 			}
-			dT.P[i-1]=fillDirPageSet(fileSet[e+1:z],files,n)
+			dT.P[i-1]=populateDir(fileSet[e+1:z],files,n)
 		}
 	}else{
 	        dT.Name = make([]string, c)
@@ -108,35 +106,37 @@ func fillDirPageSet( fileSet []string, files map[string]ofile, n int) * dirTree{
 	return &dT
 }
 
-func produceDir( dT *dirTree, outfmt int, fw *os.File ){
+func produceDir( dT *dirTree, files map[string]ofile, outfmt int, fw *os.File ){
 	if dT.P0 != nil{
-		produceDir( dT.P0, outfmt, fw )
+		produceDir( dT.P0, files, outfmt, fw )
 	}
 	for i, _ := range dT.P{
 		fmt.Println("-- ",dT.Name[i])
 		if dT.P[i] != nil {
-			produceDir( dT.P[i], outfmt, fw )
+			produceDir( dT.P[i], files, outfmt, fw )
 		}
 	}
 
 }
 
+func installBootImage(f *os.File, bootImage []byte, outfmt int)(err error){
+	if outfmt == ORIGINAL || outfmt == EXTENDED{
+                _,err = f.Seek( 2048,0)
+	}else{
+                _,err = f.Seek( PADOFFSET + 2048,0)
+	}
+	return err
+}
 
 func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (dirTree string){
 	var nA []string
-//	var dSO []oxfsgo.OBFS_DirPage
-//	var dSX []oxfsgo.OXFS_DirPage
 
 	nE:=len(files)
 	if _, ok := files["_BOOTIMAGE_"]; ok {
 		nE=len(files)-1
+		_ = installBootImage(fw,files["_BOOTIMAGE_"].Data,outfmt)
 	}
 	nA = make([]string,nE)
-//	if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
-//		dSO = make([]oxfsgo.OBFS_DirPage, nE)
-//	}else{
-//		dSX = make([]oxfsgo.OXFS_DirPage, nE)
-//	}
 
 	i:=0
 	for fn, _ := range files {
@@ -149,9 +149,9 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (dirTree st
 	rnA := nA[:]
 	sort.Strings(rnA)
 
-	dT := fillDirPageSet(rnA[:],files,oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2))
+	dT := populateDir(rnA[:],files,oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2))
 
-	produceDir(dT,outfmt,fw)
+	produceDir(dT,files,outfmt,fw)
 
 	
 	return dirTree
@@ -187,25 +187,6 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 			if err == nil {
 				defer fw.Close()
 				produceDirTree(files,outfmt,fw)
-//                                for _, k := range keys {
-//					if err == nil {
-//						if k == "_BOOTIMAGE_" {
-//						}else{
-//                                   if err == nil {
-////                                      fmt.Println(name+"/"+k, files[k].Date,files[k].Length)
-////                                      fmt.Println(string(files[k].Data))
-//                                        fname:=name+"/"+k
-//                                        fw, err := os.Create( strings.Replace(fname, "\x00", "", -1))
-//                                        if err == nil {
-//                                                _, err = fw.Write(files[k].Data)
-//                                        }else{
-////                                              fmt.Println(err)
-//                                        }
-//                                       
-//                                   }
-//						}
-//					}	
-//                                }
 			}
 
 		}

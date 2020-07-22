@@ -124,9 +124,10 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)(u
 		}else{
                         copy(hdrPage.Fill[0:len(e.Data)],e.Data[:])
 		}
+		hdrPage.Sec[0]=oxfsgo.OBFS_DiskAdr(thisSector)
 	
 	
-                if outfmt == ORIGINAL || outfmt == EXTENDED{
+                if outfmt == ORIGINAL {
                         _,err = f.Seek( (int64(thisSector/29)-1)*1024,0)
                 }else{
                         _,err = f.Seek( PADOFFSET + ((int64(thisSector/29))*1024)-1,0)
@@ -168,7 +169,7 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, fw 
 			}
 		}
 		
-	        if outfmt == ORIGINAL || outfmt == EXTENDED{
+	        if outfmt == ORIGINAL {
 	                _,err = f.Seek( (int64(thisSector/29)-1)*1024,0)
 	        }else{
 	                _,err = f.Seek( PADOFFSET + ((int64(thisSector/29))*1024)-1,0)

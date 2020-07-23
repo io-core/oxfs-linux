@@ -106,13 +106,33 @@ func populateDir( fileSet []string, files map[string]ofile, n int) * dirTree{
 	return &dT
 }
 
-func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)(usedSector int, nextFree int, err error){
-	nextFree = thisSector + 29
-        if nextFree < 65*29 {
-                nextFree = 65*29
-        }
+func produceFileData(f *os.File, outfmt int, thisSector int, data []byte) ( _ int, _ int, err error){
+
+		sectorsize:=1024
+		if outfmt == EXTENDED || outfmt == PADDEDEXTENDED {
+			sectorsize = 4096
+		}
+
+                if outfmt == ORIGINAL || outfmt == EXTENDED {
+                        _,err = f.Seek( ((int64(thisSector)/29)-1)*int64(sectorsize),0)
+                }else{
+                        _,err = f.Seek( PADOFFSET + (((int64(thisSector)/29))*int64(sectorsize))-1,0)
+                }
+                if err == nil {
+                        _,err = f.Write(data)
+                }
+
+	return thisSector, thisSector+29, err
+}
+
+func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( _ int, _ int, err error){
+	nextFree := thisSector + 29
+
         if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
                 var hdrPage oxfsgo.OBFS_FileHeader
+	//	var ib iblock
+		fillsize:=1024-oxfsgo.OBFS_HeaderSize
+
                 hdrPage.Mark = oxfsgo.OBFS_HeaderMark
                 hdrPage.Aleng = int32(len(e.Data)+oxfsgo.OBFS_HeaderSize)/1024
                 hdrPage.Bleng = int32(len(e.Data)+oxfsgo.OBFS_HeaderSize)%1024
@@ -120,12 +140,24 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)(u
                         hdrPage.Name[x]=ch
                 }
 		if len(e.Data)>=1024-oxfsgo.OBFS_HeaderSize {
-			copy(hdrPage.Fill[0:1024-oxfsgo.OBFS_HeaderSize],e.Data[0:1024-oxfsgo.OBFS_HeaderSize])
+			copy(hdrPage.Fill[0:fillsize],e.Data[0:fillsize])
 		}else{
                         copy(hdrPage.Fill[0:len(e.Data)],e.Data[:])
 		}
 		hdrPage.Sec[0]=oxfsgo.OBFS_DiskAdr(thisSector)
-	
+
+		for n:=1;n<=int(hdrPage.Aleng);n++{
+			if n<oxfsgo.OBFS_SecTabSize {
+				var dAdr int
+				thisstart:=fillsize+((n-1)*1024)
+				thisend:=thisstart+1024
+				if thisend > len(e.Data){
+					thisend=len(e.Data)
+				}
+				dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
+				hdrPage.Sec[n]=oxfsgo.OBFS_DiskAdr(dAdr)
+			}
+		}
 	
                 if outfmt == ORIGINAL {
                         _,err = f.Seek( (int64(thisSector/29)-1)*1024,0)
@@ -133,7 +165,6 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)(u
                         _,err = f.Seek( PADOFFSET + ((int64(thisSector/29))*1024)-1,0)
                 }
                 if err == nil {
-                        fmt.Print(".",thisSector)
                         err = binary.Write(f, binary.LittleEndian, hdrPage)
                 }
 	}
@@ -141,59 +172,55 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)(u
 	return thisSector, nextFree, err
 }
 
-func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, fw *os.File, thisSector int )( usedSector int, nextFree int, err error){
-	var thatSector int
-	nextFree = thisSector + 29
+func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thisSector int )( _ int, _ int, err error){
+	var storedAt int
+
+	nextFree := thisSector + 29
 	if nextFree < 65*29 {
 		nextFree = 65*29
 	}
-
 	if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
 		var dirPage oxfsgo.OBFS_DirPage
 		dirPage.Mark = oxfsgo.OBFS_DirMark
                 dirPage.M = int32(len(dT.Name))
 		if dT.P0 != nil{
-			thatSector, nextFree, err = produceDir(f, dT.P0, files, outfmt, fw, nextFree )
-			dirPage.P0 = oxfsgo.OBFS_DiskAdr(thatSector)
+			storedAt, nextFree, err = produceDir(f, dT.P0, files, outfmt, nextFree )
+			dirPage.P0 = oxfsgo.OBFS_DiskAdr(storedAt)
 		}
 		for i, _ := range dT.P{
-//			fmt.Println(thisSector," -- ",dT.Name[i])
 			for x, ch := range []byte(dT.Name[i]){
 				dirPage.E[i].Name[x]=ch
 			}
-                        thatSector, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
-                        dirPage.E[i].Adr = oxfsgo.OBFS_DiskAdr(thatSector)
+                        storedAt, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
+                        dirPage.E[i].Adr = oxfsgo.OBFS_DiskAdr(storedAt)
 			if dT.P[i] != nil {
-				thatSector, nextFree, err = produceDir(f, dT.P[i], files, outfmt, fw, nextFree )
-	                        dirPage.E[i].P = oxfsgo.OBFS_DiskAdr(thatSector)
+				storedAt, nextFree, err = produceDir(f, dT.P[i], files, outfmt, nextFree )
+	                        dirPage.E[i].P = oxfsgo.OBFS_DiskAdr(storedAt)
 			}
 		}
-		
 	        if outfmt == ORIGINAL {
 	                _,err = f.Seek( (int64(thisSector/29)-1)*1024,0)
 	        }else{
 	                _,err = f.Seek( PADOFFSET + ((int64(thisSector/29))*1024)-1,0)
 	        }
 	        if err == nil {
-			fmt.Print(".",thisSector)
 	                err = binary.Write(f, binary.LittleEndian, dirPage)
 		}
-
 	}else{
 	}
-
-
 	return thisSector, nextFree, err
 }
 
 func installBootImage(f *os.File, bootImage []byte, outfmt int)(err error){
+	var i int
 	if outfmt == ORIGINAL || outfmt == EXTENDED{
                 _,err = f.Seek( 1024,0)
 	}else{
                 _,err = f.Seek( PADOFFSET + 1024,0)
 	}
-	if err != nil {
-		_, err = f.Write(bootImage)
+	if err == nil {
+		i, err = f.Write(bootImage)
+		fmt.Println("boot image bytes written:",i)
 	}
 	return err
 }
@@ -222,7 +249,7 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error)
 
 		dT := populateDir(rnA[:],files,oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2))
 
-		_,_, err = produceDir(fw,dT,files,outfmt,fw,29)
+		_,_, err = produceDir(fw,dT,files,outfmt,29)
 	}
 	
 	return err

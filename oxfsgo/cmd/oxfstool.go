@@ -147,15 +147,18 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 		hdrPage.Sec[0]=oxfsgo.OBFS_DiskAdr(thisSector)
 
 		for n:=1;n<=int(hdrPage.Aleng);n++{
-			if n<oxfsgo.OBFS_SecTabSize {
-				var dAdr int
-				thisstart:=fillsize+((n-1)*1024)
-				thisend:=thisstart+1024
-				if thisend > len(e.Data){
-					thisend=len(e.Data)
-				}
-				dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
+			
+			var dAdr int
+			thisstart:=fillsize+((n-1)*1024)
+			thisend:=thisstart+1024
+			if thisend > len(e.Data){
+				thisend=len(e.Data)
+			}
+			dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
+                        if n<oxfsgo.OBFS_SecTabSize { 
 				hdrPage.Sec[n]=oxfsgo.OBFS_DiskAdr(dAdr)
+			}else{
+				//
 			}
 		}
 	

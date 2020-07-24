@@ -125,12 +125,25 @@ func produceFileData(f *os.File, outfmt int, thisSector int, data []byte) ( _ in
 	return thisSector, thisSector+29, err
 }
 
+func produceIndirectBlock(f *os.File, ib * iblock, outfmt int )( err error){
+
+                if outfmt == ORIGINAL {
+                        _,err = f.Seek( (int64(ib.A/29)-1)*1024,0)
+                }else{
+                        _,err = f.Seek( PADOFFSET + ((int64(ib.A/29))*1024)-1,0)
+                }
+                if err == nil {
+                        err = binary.Write(f, binary.LittleEndian, ib.E)
+                }
+
+		return err
+}
+
 func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( _ int, _ int, err error){
 	nextFree := thisSector + 29
 
         if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
                 var hdrPage oxfsgo.OBFS_FileHeader
-	//	var ib iblock
 		fillsize:=1024-oxfsgo.OBFS_HeaderSize
 
                 hdrPage.Mark = oxfsgo.OBFS_HeaderMark
@@ -146,6 +159,9 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 		}
 		hdrPage.Sec[0]=oxfsgo.OBFS_DiskAdr(thisSector)
 
+		var ib iblock
+		indirectUsed := false
+		
 		for n:=1;n<=int(hdrPage.Aleng);n++{
 			
 			var dAdr int
@@ -157,9 +173,25 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 			dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
                         if n<oxfsgo.OBFS_SecTabSize { 
 				hdrPage.Sec[n]=oxfsgo.OBFS_DiskAdr(dAdr)
+			}else if ((n-oxfsgo.OBFS_SecTabSize)/256) < oxfsgo.OBFS_ExTabSize  {
+				ni := n-oxfsgo.OBFS_SecTabSize
+				if ni % 256 == 0 {
+					if indirectUsed {
+						_=produceIndirectBlock(f, &ib, outfmt )
+					}
+					indirectUsed = true
+					
+					hdrPage.Ext[ni/256] = oxfsgo.OBFS_DiskAdr(nextFree)
+					ib.A =  int64(nextFree)
+					nextFree = nextFree + 29
+				}
+				ib.E[ni%256]=uint32(dAdr)
 			}else{
-				//
+				// silently truncate file that is too large
 			}
+		}
+		if indirectUsed {
+			_=produceIndirectBlock(f, &ib, outfmt )		
 		}
 	
                 if outfmt == ORIGINAL {

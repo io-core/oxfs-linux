@@ -202,6 +202,8 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
                 if err == nil {
                         err = binary.Write(f, binary.LittleEndian, hdrPage)
                 }
+	}else{
+
 	}
 
 	return thisSector, nextFree, err
@@ -242,6 +244,32 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
 	                err = binary.Write(f, binary.LittleEndian, dirPage)
 		}
 	}else{
+                var dirPage oxfsgo.OXFS_DirPage
+                dirPage.Mark = oxfsgo.OXFS_DirMark
+                dirPage.M = int64(len(dT.Name))
+                if dT.P0 != nil{
+                        storedAt, nextFree, err = produceDir(f, dT.P0, files, outfmt, nextFree )
+                        dirPage.P0 = oxfsgo.OXFS_DiskAdr(storedAt)
+                }
+                for i, _ := range dT.P{
+                        for x, ch := range []byte(dT.Name[i]){
+                                dirPage.E[i].Name[x]=ch
+                        }
+                        storedAt, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
+                        dirPage.E[i].Adr = oxfsgo.OXFS_DiskAdr(storedAt)
+                        if dT.P[i] != nil {
+                                storedAt, nextFree, err = produceDir(f, dT.P[i], files, outfmt, nextFree )
+                                dirPage.E[i].P = oxfsgo.OXFS_DiskAdr(storedAt)
+                        }
+                }
+                if outfmt == ORIGINAL {
+                        _,err = f.Seek( (int64(thisSector/29)-1)*4096,0)
+                }else{
+                        _,err = f.Seek( PADOFFSET + ((int64(thisSector/29))*4096)-1,0)
+                }
+                if err == nil {
+                        err = binary.Write(f, binary.LittleEndian, dirPage)
+                }
 	}
 	return thisSector, nextFree, err
 }
@@ -290,7 +318,7 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error)
 	return err
 }
 
-func producefs(name string, files map[string]ofile, outfmt int, force bool)(err error){
+func producefs(name string, files map[string]ofile, outfmt int, force bool, osize int64, size string)(err error){
 	var fi *os.File
         keys := make([]string, 0, len(files))
         for k := range files {
@@ -300,28 +328,31 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool)(err 
 
 	if outfmt != LOCALFILES{
 
-                fi, err = os.Open(name)
-		if err != nil{ // assume because file does not exist
-			err = nil
-                }else{
-                        fs, staterr := fi.Stat()
-                        fi.Close()
-                        switch {
-                          case staterr != nil:
-                                err = staterr
-                          case fs.IsDir():
-                                err = fmt.Errorf("destination disk image is a directory")
-                          default:
-                                err = fmt.Errorf("destination disk image already exists")
+		if size=="same" && osize==0 {
+                         err = fmt.Errorf("cannot use destination disk image size 'same' if source is files")
+		}else{		
+                        fi, err = os.Open(name)
+			if err != nil{ // assume because file does not exist
+				err = nil
+                        }else{
+                                fs, staterr := fi.Stat()
+                                fi.Close()
+                                switch {
+                                  case staterr != nil:
+                                        err = staterr
+                                  case fs.IsDir():
+                                        err = fmt.Errorf("destination disk image is a directory")
+                                  default:
+                                        err = fmt.Errorf("destination disk image already exists")
+                                }
                         }
-                }
-		if err == nil {
-			fw, err := os.Create( name )
 			if err == nil {
-				defer fw.Close()
-				err = produceDirTree(files,outfmt,fw)
+				fw, err := os.Create( name )
+				if err == nil {
+					defer fw.Close()
+					err = produceDirTree(files,outfmt,fw)
+				}
 			}
-
 		}
 	}else{
 		fi, err = os.Open(name)
@@ -420,6 +451,11 @@ func ingestOriginalFile(f *os.File, pad int64, sector int64)(fe ofile, err error
 	return fe, err
 }
 
+func ingestExtendedFile(f *os.File, pad int64, sector int64)(fe ofile, err error){
+        return fe, err
+}
+
+
 func ingestOriginalBootImage(f *os.File, pad int64)(fe ofile, err error){
 	var sz int
         block := make([]byte, 1024)
@@ -479,12 +515,21 @@ func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofi
         var dp *oxfsgo.OXFS_DirPage
 
 
-        _,err = f.Seek(pad + (sector/29)-1,0)
+        _,err = f.Seek(pad + ((sector/29)-1)*4096,0)
         if err == nil {
                 binary.Read(f, binary.LittleEndian, &dp)
         }
         if err == nil {
-                fmt.Println("ingesting dirpage",sector,"mark",dp.Mark,"count",dp.M)
+                if dp.P0 != 0{
+                        files, err = ingestExtendedDir(f,pad,int64(dp.P0),files)
+                }
+                for i:=int64(0);i<dp.M;i++{
+//                      fmt.Println("ingesting dirpage",sector,"mark",dp.Mark,"count",dp.M)
+                        files[string(dp.E[i].Name[:])],err=ingestExtendedFile(f,pad,int64(dp.E[i].Adr))
+                        if dp.E[i].P != 0 {
+                                files, err = ingestExtendedDir(f,pad,int64(dp.E[i].P),files)
+                        }
+                }
 
         }
         return files, err
@@ -515,7 +560,7 @@ func ingestFromFile(filename string)(fi ofile, err error){
 	return fi, err 
 }
 
-func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
+func ingestFS(filename string, infmt int)(files map[string]ofile, osize int64, err error){
 	var f *os.File
 	var kind  int
 	var pad int64
@@ -546,7 +591,7 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
                           case mode.IsRegular():
 
 				if err == nil{
-					kind,_,err = identify(f)
+					kind,osize,err = identify(f)
 					if kind == PADDEDORIGINAL || kind == PADDEDEXTENDED {
 						pad = PADOFFSET
 					}
@@ -579,14 +624,14 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, err error){
 				}
 			}
 	}
-	return files,err
+	return files,osize,err
 }
 
 func main() {
 
         inPtr := flag.String("i", "", "input disk image")
         outPtr := flag.String("o", "", "output disk image")
-//	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
+	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
 	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")	
 	o2xPtr := flag.Bool("o2x", false, "convert from original to extended format")	
         x2oPtr := flag.Bool("x2o", false, "convert from extended to original format")
@@ -619,11 +664,11 @@ func main() {
 			flag.PrintDefaults()
                         os.Exit(1)
 		}else{
-			if files,err:=ingestFS(*inPtr, infmt); err != nil {
+			if files,osize,err:=ingestFS(*inPtr, infmt); err != nil {
 		                fmt.Println(err)
 				os.Exit(1)
 			}else{
-				if err=producefs(*outPtr, files, outfmt, *forcePtr); err != nil {
+				if err=producefs(*outPtr, files, outfmt, *forcePtr, osize, *sizePtr); err != nil {
                                 	fmt.Println(err)
 	                                os.Exit(1)
 				}

@@ -14,11 +14,11 @@ import (
 
 const (
 	UNKNOWN = iota
-	ORIGINAL 
-	PADDEDORIGINAL 
-	EXTENDED 
-	PADDEDEXTENDED 
-	LOCALFILES 
+	ORIGINAL
+	PADDEDORIGINAL
+	EXTENDED
+	PADDEDEXTENDED
+	LOCALFILES
 )
 
 const PADOFFSET = (524288*512)+1024
@@ -26,7 +26,7 @@ const PADOFFSET = (524288*512)+1024
 type  ofile struct {
 	Length uint64
 	Date   uint64
-	Data   []byte	
+	Data   []byte
 }
 
 type iblock struct {
@@ -56,7 +56,7 @@ func identify(f *os.File) (kind int, size int64, err error) {
                         kind = EXTENDED
 		}
 		if kind == UNKNOWN {
-                	_,err = f.Seek(PADOFFSET,0)
+			_,err = f.Seek(PADOFFSET,0)
 		}
 	        if err == nil {
 	                _, err = f.Read(buf)
@@ -76,14 +76,14 @@ func identify(f *os.File) (kind int, size int64, err error) {
 }
 
 func populateDir( fileSet []string, files map[string]ofile, n int) * dirTree{
-	var dT dirTree	
+	var dT dirTree
 	c:=len(fileSet)
 	if c>n {
 		sz:=c/(n+1)
 		fmt.Println("sz:",sz)
 		dT.Name = make([]string, n)
 		dT.P = make([]*dirTree, n)
-                
+
 		dT.P0=populateDir(fileSet[0:sz],files,n)
 		for i:=1;i<=n;i++{
 			e:=i*sz
@@ -100,7 +100,7 @@ func populateDir( fileSet []string, files map[string]ofile, n int) * dirTree{
                 for e:=0;e<c;e++{
 			dT.Name[e]=fileSet[e]
 		}
-	}	
+	}
 
 
 	return &dT
@@ -161,9 +161,9 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 
 		var ib iblock
 		indirectUsed := false
-		
+
 		for n:=1;n<=int(hdrPage.Aleng);n++{
-			
+
 			var dAdr int
 			thisstart:=fillsize+((n-1)*1024)
 			thisend:=thisstart+1024
@@ -171,7 +171,7 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 				thisend=len(e.Data)
 			}
 			dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
-                        if n<oxfsgo.OBFS_SecTabSize { 
+                        if n<oxfsgo.OBFS_SecTabSize {
 				hdrPage.Sec[n]=oxfsgo.OBFS_DiskAdr(dAdr)
 			}else if ((n-oxfsgo.OBFS_SecTabSize)/256) < oxfsgo.OBFS_ExTabSize  {
 				ni := n-oxfsgo.OBFS_SecTabSize
@@ -180,7 +180,7 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 						_=produceIndirectBlock(f, &ib, outfmt )
 					}
 					indirectUsed = true
-					
+
 					hdrPage.Ext[ni/256] = oxfsgo.OBFS_DiskAdr(nextFree)
 					ib.A =  int64(nextFree)
 					nextFree = nextFree + 29
@@ -191,9 +191,9 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 			}
 		}
 		if indirectUsed {
-			_=produceIndirectBlock(f, &ib, outfmt )		
+			_=produceIndirectBlock(f, &ib, outfmt )
 		}
-	
+
                 if outfmt == ORIGINAL {
                         _,err = f.Seek( (int64(thisSector/29)-1)*1024,0)
                 }else{
@@ -314,7 +314,7 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error)
 
 		_,_, err = produceDir(fw,dT,files,outfmt,29)
 	}
-	
+
 	return err
 }
 
@@ -330,7 +330,7 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool, osiz
 
 		if size=="same" && osize==0 {
                          err = fmt.Errorf("cannot use destination disk image size 'same' if source is files")
-		}else{		
+		}else{
                         fi, err = os.Open(name)
 			if err != nil{ // assume because file does not exist
 				err = nil
@@ -361,7 +361,7 @@ func producefs(name string, files map[string]ofile, outfmt int, force bool, osiz
 			fi.Close()
 			switch {
 			  case staterr != nil:
-			  	err = staterr
+				err = staterr
 			  case fs.IsDir():
 			        for _, k := range keys {
 				   if err == nil {
@@ -387,7 +387,7 @@ func getOriginalDataBlock(f *os.File, pad int64, e uint64, fp *oxfsgo.OBFS_FileH
 	if e < oxfsgo.OBFS_SecTabSize {
 	        _,err = f.Seek(pad + (int64(fp.Sec[e])/29-1)*1024,0)
 	        if err == nil {
-	                _, err = f.Read(block)	
+	                _, err = f.Read(block)
 		}
 	}else{
 		x:=e-oxfsgo.OBFS_SecTabSize
@@ -407,7 +407,7 @@ func getOriginalDataBlock(f *os.File, pad int64, e uint64, fp *oxfsgo.OBFS_FileH
                         _,err = f.Seek(pad + (int64(iblk.E[r])/29-1)*1024,0)
                 }
                 if err == nil {
-                	_, err = f.Read(block)
+			_, err = f.Read(block)
                 }
 	}
 
@@ -420,7 +420,7 @@ func ingestOriginalFile(f *os.File, pad int64, sector int64)(fe ofile, err error
 	var block []byte
 
 	const offset = 1024-oxfsgo.OBFS_HeaderSize
-	
+
 
         _,err = f.Seek(pad + ((sector/29)-1)*1024,0)
         if err == nil {
@@ -489,8 +489,8 @@ func ingestExtendedBootImage(f *os.File, pad int64)(kernel []byte, err error){
 
 
 func ingestOriginalDir(f *os.File, pad int64, sector int64, files map[string]ofile) (outfiles map[string]ofile, err error){
-	var dp oxfsgo.OBFS_DirPage	
-        
+	var dp oxfsgo.OBFS_DirPage
+
 
         _,err = f.Seek(pad + ((sector/29)-1)*1024,0)
         if err == nil {
@@ -503,7 +503,7 @@ func ingestOriginalDir(f *os.File, pad int64, sector int64, files map[string]ofi
 		for i:=int32(0);i<dp.M;i++{
 //			fmt.Println("file",string(dp.E[i].Name[:]))
 			files[string(dp.E[i].Name[:])],err=ingestOriginalFile(f,pad,int64(dp.E[i].Adr))
-			if dp.E[i].P != 0 {	
+			if dp.E[i].P != 0 {
 				files, err = ingestOriginalDir(f,pad,int64(dp.E[i].P),files)
 			}
 		}
@@ -557,14 +557,14 @@ func ingestFromFile(filename string)(fi ofile, err error){
 	        fi.Data = make([]byte, fi.Length)
                 _, err = f.Read(fi.Data)
         }
-	return fi, err 
+	return fi, err
 }
 
 func ingestFS(filename string, infmt int)(files map[string]ofile, osize int64, err error){
 	var f *os.File
 	var kind  int
 	var pad int64
-	var fnames []string	
+	var fnames []string
 
 	files = make(map[string]ofile)
 
@@ -589,7 +589,7 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, osize int64, e
 					}
 				}
                                 //                err = fmt.Errorf("don't know how to read directory %s",filename)
- 
+
                           case mode.IsRegular():
 
 				if err == nil{
@@ -598,27 +598,27 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, osize int64, e
 						pad = PADOFFSET
 					}
 				}
-				if err == nil{		
-					if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) || 
-					     ((kind == EXTENDED) && (infmt == EXTENDED) ) ||  
-					     ((kind == PADDEDORIGINAL) && (infmt==ORIGINAL) ) || 
+				if err == nil{
+					if !(((kind == ORIGINAL) && (infmt==ORIGINAL) ) ||
+					     ((kind == EXTENDED) && (infmt == EXTENDED) ) ||
+					     ((kind == PADDEDORIGINAL) && (infmt==ORIGINAL) ) ||
 			                     ((kind == PADDEDEXTENDED) && (infmt == EXTENDED) )   ){
 						err = fmt.Errorf("wrong format for input disk image %s",filename)
 					}
 			        }
 
-	
+
 
 			        if err == nil{
 			                if infmt == ORIGINAL {
 						files["_BOOTIMAGE_"],err=ingestOriginalBootImage(f,pad)
-						
+
 			                }else{
 			                        _,err=ingestExtendedBootImage(f,pad)
 					}
 			        }
 			        if err == nil{
-			 		if infmt == ORIGINAL {
+					if infmt == ORIGINAL {
 						files, err = ingestOriginalDir(f,pad,29,files)
 					}else{
 			                        files, err = ingestExtendedDir(f,pad,29,files)
@@ -633,9 +633,9 @@ func main() {
 
         inPtr := flag.String("i", "", "input disk image")
         outPtr := flag.String("o", "", "output disk image")
-	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'") 
-	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")	
-	o2xPtr := flag.Bool("o2x", false, "convert from original to extended format")	
+	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'")
+	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")
+	o2xPtr := flag.Bool("o2x", false, "convert from original to extended format")
         x2oPtr := flag.Bool("x2o", false, "convert from extended to original format")
         o2fPtr := flag.Bool("o2f", false, "convert from original to local files")
         x2fPtr := flag.Bool("x2f", false, "convert from extended to local files")
@@ -671,13 +671,13 @@ func main() {
 				os.Exit(1)
 			}else{
 				if err=producefs(*outPtr, files, outfmt, *forcePtr, osize, *sizePtr); err != nil {
-                                	fmt.Println(err)
+					fmt.Println(err)
 	                                os.Exit(1)
 				}
                         }
 		}
 	}else if *checkPtr {
-                if (*inPtr == "") || (*outPtr == ""){   
+                if (*inPtr == "") || (*outPtr == ""){
                         fmt.Println("input disk image must be specified")
                         flag.PrintDefaults()
                         os.Exit(1)

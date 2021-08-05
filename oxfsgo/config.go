@@ -1,18 +1,18 @@
 package oxfsgo
 
 // 32-bit oberon file system  141.2 GiB Max Volume         
-const OBFS_FnLength    = 32                                  
-const OBFS_SecTabSize  = 64                                  
+const OBFS_FnLength    = 32
+const OBFS_SecTabSize  = 64
 const OBFS_ExTabSize   = 12  //64+12*256 = 3MB max file size 
-const OBFS_SectorSize  = 1024                                
+const OBFS_SectorSize  = 1024
 const OBFS_IndexSize   = 256    //SectorSize / 4             
-const OBFS_HeaderSize  = 352                                 
-const OBFS_DirRootAdr  = 29                                  
-const OBFS_DirPgSize   = 24                                  
+const OBFS_HeaderSize  = 352
+const OBFS_DirRootAdr  = 29
+const OBFS_DirPgSize   = 24
 const OBFS_N = 12               //DirPgSize / 2              
 const OBFS_DirMark    = 0x9B1EA38D
 const OBFS_HeaderMark = 0x9BA71D86
-const OBFS_FillerSize = 52                                   
+const OBFS_FillerSize = 52
 
 // 64-bit oberon extended file system  2 ZiB Max Volume
 const OXFS_FnLength    = 47
@@ -34,7 +34,7 @@ type    OBFS_SectorTable    [OBFS_SecTabSize]OBFS_DiskAdr  // 65,184 byte max fi
 type    OBFS_ExtensionTable [OBFS_ExTabSize]OBFS_DiskAdr   // 3,210,912 max file size with addition of extension table
 
 type    OXFS_DiskAdr         int64
-type    OXFS_FileName       [OXFS_FnLength]byte            
+type    OXFS_FileName       [OXFS_FnLength]byte
 type    OXFS_SectorTable    [OXFS_TabSize]OXFS_DiskAdr     // 3 point to a file page, last points to a sector of pointers to file pages, except the last 
                                                            // which points to a sector of pointers to pointers to file pages, except the last
                                                            // which points to a sector of pointers to pointers to pointers to file pages, and so on

@@ -582,8 +582,10 @@ func ingestFS(filename string, infmt int)(files map[string]ofile, osize int64, e
 				for _, fn := range fnames {
 					//_, file := path.Split(fn)
 					if len(fn)>pre+1{
-						fmt.Println(fn[pre+1:])
-						files[fn[pre+1:]],err=ingestFromFile(fn)
+                                                if fn[pre+1] != '.'{
+							fmt.Println(fn[pre+1:])
+							files[fn[pre+1:]],err=ingestFromFile(fn)
+						}
 					}
 				}
                                 //                err = fmt.Errorf("don't know how to read directory %s",filename)

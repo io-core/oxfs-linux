@@ -26,7 +26,7 @@ const OXFS_HdrPgSize   = 63
 const OXFS_N = 31               //DirPgSize / 2
 const OXFS_DirMark    = 0x9B1EA38E
 const OXFS_HeaderMark = 0x9BA71D87
-const OXFS_FillerSize = 40
+const OXFS_FillerSize = 32
 
 type    OBFS_DiskAdr         int32
 type    OBFS_FileName       [OBFS_FnLength]byte            // 672 data bytes in zeroth sector of file
@@ -90,6 +90,7 @@ type    OBFS_DirPage struct {
 type    OXFS_DirPage struct {
         Mark  uint64
         M     int64
+	N     int64
         P0    OXFS_DiskAdr //  (*sec no of left descendant in directory*)
         Fill  [OXFS_FillerSize]byte
         E  [OXFS_DirPgSize]OXFS_DirEntry

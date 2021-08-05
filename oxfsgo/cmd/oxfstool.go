@@ -276,10 +276,17 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
 
 func installBootImage(f *os.File, bootImage []byte, outfmt int)(err error){
 	var i int
-	if outfmt == ORIGINAL || outfmt == EXTENDED{
-                _,err = f.Seek( 1024,0)
+	var ssz int64
+
+	if outfmt == EXTENDED || outfmt == PADDEDEXTENDED {
+		ssz = 4096
 	}else{
-                _,err = f.Seek( PADOFFSET + 1024,0)
+		ssz = 1024
+	}
+	if outfmt == ORIGINAL || outfmt == EXTENDED{
+                _,err = f.Seek( ssz,0)
+	}else{
+                _,err = f.Seek( PADOFFSET + ssz,0)
 	}
 	if err == nil {
 		i, err = f.Write(bootImage)
@@ -310,7 +317,12 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error)
 		rnA := nA[:]
 		sort.Strings(rnA)
 
-		dT := populateDir(rnA[:],files,oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2))
+		dsz := oxfsgo.OBFS_N+(oxfsgo.OBFS_N/2)
+
+		if outfmt == EXTENDED || outfmt == PADDEDEXTENDED {
+			dsz = oxfsgo.OXFS_N+(oxfsgo.OXFS_N/2)
+		}
+		dT := populateDir(rnA[:],files,dsz)
 
 		_,_, err = produceDir(fw,dT,files,outfmt,29)
 	}

@@ -139,7 +139,7 @@ func produceIndirectBlock(f *os.File, ib * iblock, outfmt int )( err error){
 		return err
 }
 
-func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( _ int, _ int, err error){
+func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( _ int, _ int, _ int, err error){
 	nextFree := thisSector + 29
 
         if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
@@ -206,11 +206,11 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int)( 
 
 	}
 
-	return thisSector, nextFree, err
+	return thisSector, 0, nextFree, err
 }
 
 func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thisSector int )( _ int, _ int, err error){
-	var storedAt int
+	var storedAt, storedIdx int
 
 	nextFree := thisSector + 29
 	if nextFree < 65*29 {
@@ -228,7 +228,7 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
 			for x, ch := range []byte(dT.Name[i]){
 				dirPage.E[i].Name[x]=ch
 			}
-                        storedAt, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
+                        storedAt, _, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
                         dirPage.E[i].Adr = oxfsgo.OBFS_DiskAdr(storedAt)
 			if dT.P[i] != nil {
 				storedAt, nextFree, err = produceDir(f, dT.P[i], files, outfmt, nextFree )
@@ -255,14 +255,15 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
                         for x, ch := range []byte(dT.Name[i]){
                                 dirPage.E[i].Name[x]=ch
                         }
-                        storedAt, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
+                        storedAt, storedIdx, nextFree, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree )
                         dirPage.E[i].Adr = oxfsgo.OXFS_DiskAdr(storedAt)
+                        dirPage.E[i].I = storedIdx
                         if dT.P[i] != nil {
                                 storedAt, nextFree, err = produceDir(f, dT.P[i], files, outfmt, nextFree )
                                 dirPage.E[i].P = oxfsgo.OXFS_DiskAdr(storedAt)
                         }
                 }
-                if outfmt == ORIGINAL {
+                if outfmt == EXTENDED {
                         _,err = f.Seek( (int64(thisSector/29)-1)*4096,0)
                 }else{
                         _,err = f.Seek( PADOFFSET + ((int64(thisSector/29))*4096)-1,0)

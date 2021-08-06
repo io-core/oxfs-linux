@@ -227,16 +227,16 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
 			FHPp.Mark = oxfsgo.OXFS_HeaderMark
 			FHPp.Next = 0
 			FHPp.Tmp = 0
-			for i:=0;i<=oxfsgo.OXFS_HdrPgSize;i++{
+			for i:=0;i<oxfsgo.OXFS_HdrPgSize;i++{
 				FHPp.Headers[i].Type=4294967295  // empty slot
 			}
 		}else{
 			FHPp.Tmp = FHPp.Tmp + 1
-			if FHPp.Tmp == 64 {
+			if FHPp.Tmp == 63 {
 				cFHP = nextFree
 				nextFree = thisSector + 29
 				FHPp.Tmp = 0
-				for i:=0;i<=oxfsgo.OXFS_HdrPgSize;i++{
+				for i:=0;i<oxfsgo.OXFS_HdrPgSize;i++{
 					FHPp.Headers[i].Type=4294967295 // empty slot
 				}
 			}

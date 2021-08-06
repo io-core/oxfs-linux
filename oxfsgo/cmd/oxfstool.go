@@ -34,6 +34,11 @@ type iblock struct {
 	E	[256] uint32
 }
 
+type xblock struct {
+	A	int64
+	E	[1024] uint64
+}
+
 type dirTree struct {
 	P0 *dirTree
 	Name []string
@@ -139,6 +144,20 @@ func produceIndirectBlock(f *os.File, ib * iblock, outfmt int )( err error){
 		return err
 }
 
+func produceXIndirectBlock(f *os.File, xb * xblock, outfmt int )( err error){
+
+                if outfmt == EXTENDED {
+                        _,err = f.Seek( (int64(xb.A/29)-1)*4096,0)
+                }else{
+                        _,err = f.Seek( PADOFFSET + ((int64(xb.A/29))*4096)-1,0)
+                }
+                if err == nil {
+                        err = binary.Write(f, binary.LittleEndian, xb.E)
+                }
+
+		return err
+}
+
 func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, iFHP int, FHPp *oxfsgo.OXFS_HeaderPage)( _ int, _ int, _ int, _ int, err error){
 	nextFree := thisSector + 29
 	cFHP := iFHP
@@ -230,10 +249,47 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
                 FHPp.Headers[FHPp.Tmp].Owner = 0
                 FHPp.Headers[FHPp.Tmp].Group = 0
 
-                if outfmt == ORIGINAL {
-                        _,err = f.Seek( (int64(cFHP/29)-1)*1024,0)
+		var xb xblock
+		indirectUsed := false
+
+		for n:=0;n<=len(e.Data)/4096;n++{
+
+			var dAdr int
+			thisstart:=n*4096
+			thisend:=thisstart+4096
+			if thisend > len(e.Data){
+				thisend=len(e.Data)
+			}
+
+			dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
+
+                        if n<3 {
+                                FHPp.Headers[FHPp.Tmp].Tab[n]=oxfsgo.OXFS_DiskAdr(dAdr)
+                        }else if ((n-3)/512) < 511  {
+                                ni := (n-3)/512
+                                if ni % 512 == 0 {
+                                        if indirectUsed {
+                                                _=produceXIndirectBlock(f, &xb, outfmt )
+                                        }
+                                        indirectUsed = true
+
+                                        FHPp.Headers[FHPp.Tmp].Tab[3] = oxfsgo.OXFS_DiskAdr(nextFree)
+                                        xb.A =  int64(nextFree)
+                                        nextFree = nextFree + 29
+                                }
+                                xb.E[ni%512]=uint64(dAdr)
+                        }else{
+                                // silently truncate file that is too large
+                        }
+		}
+
+		if indirectUsed {
+			_=produceXIndirectBlock(f, &xb, outfmt )
+		}
+                if outfmt == EXTENDED {
+                        _,err = f.Seek( (int64(cFHP/29)-1)*4096,0)
                 }else{
-                        _,err = f.Seek( PADOFFSET + ((int64(cFHP/29))*1024)-1,0)
+                        _,err = f.Seek( PADOFFSET + ((int64(cFHP/29))*4096)-1,0)
                 }
                 if err == nil {
                         err = binary.Write(f, binary.LittleEndian, *FHPp)

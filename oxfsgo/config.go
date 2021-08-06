@@ -55,13 +55,14 @@ type  OXFS_FileHeader struct { // 63 in a HeaderPage
 	Length uint64
 	Owner uint32
 	Group uint32
-        Tab [OXFS_TabSize]uint64
+        Tab OXFS_SectorTable
 }
 
 type  OXFS_HeaderPage struct {
         Mark uint64
 	Next uint64        // (*sec no of next non-full HeaderPage, zero if full *)
-	Fill [48]byte
+	Tmp uint64
+	Fill [40]byte
 	Headers [OXFS_HdrPgSize]OXFS_FileHeader
 }
 

@@ -204,10 +204,43 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
                         err = binary.Write(f, binary.LittleEndian, hdrPage)
                 }
 	}else{
+		if FHPp.Mark == 0 {
+			FHPp.Mark = oxfsgo.OXFS_HeaderMark
+			FHPp.Next = 0
+			FHPp.Tmp = 0
+			for i:=0;i<=oxfsgo.OXFS_HdrPgSize;i++{
+				FHPp.Headers[i].Type=4294967295  // empty slot
+			}
+		}else{
+			FHPp.Tmp = FHPp.Tmp + 1
+			if FHPp.Tmp == 64 {
+				cFHP = nextFree
+				nextFree = thisSector + 29
+				FHPp.Tmp = 0
+				for i:=0;i<=oxfsgo.OXFS_HdrPgSize;i++{
+					FHPp.Headers[i].Type=4294967295 // empty slot
+				}
+			}
+                        FHPp.Headers[FHPp.Tmp].Type = 0  // regular file
+                        FHPp.Headers[FHPp.Tmp].Perm = 0
+                        FHPp.Headers[FHPp.Tmp].Date = 0
+                        FHPp.Headers[FHPp.Tmp].Length = uint64(len(e.Data))
+                        FHPp.Headers[FHPp.Tmp].Owner = 0
+                        FHPp.Headers[FHPp.Tmp].Group = 0
 
+		}
+
+                if outfmt == ORIGINAL {
+                        _,err = f.Seek( (int64(cFHP/29)-1)*1024,0)
+                }else{
+                        _,err = f.Seek( PADOFFSET + ((int64(cFHP/29))*1024)-1,0)
+                }
+                if err == nil {
+                        err = binary.Write(f, binary.LittleEndian, *FHPp)
+                }
 	}
 
-	return thisSector, 0, nextFree, cFHP, err
+	return thisSector, int(FHPp.Tmp), nextFree, cFHP, err
 }
 
 func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thisSector int, iFHP int, FHPp *oxfsgo.OXFS_HeaderPage )( _ int, _ int, _ int, err error){
@@ -333,6 +366,8 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error)
 			dsz = oxfsgo.OXFS_N+(oxfsgo.OXFS_N/2)
 			cFHP = 0
 			FHPp = &FHP
+			FHPp.Mark = 0
+			FHPp.Next = 0
 		}
 		dT := populateDir(rnA[:],files,dsz)
 

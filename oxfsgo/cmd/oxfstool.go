@@ -139,7 +139,7 @@ func produceIndirectBlock(f *os.File, ib * iblock, outfmt int )( err error){
 		return err
 }
 
-func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, iFHP int)( _ int, _ int, _ int, _ int, err error){
+func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, iFHP int, FHPp *oxfsgo.OXFS_HeaderPage)( _ int, _ int, _ int, _ int, err error){
 	nextFree := thisSector + 29
 	cFHP := iFHP
 
@@ -210,7 +210,7 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
 	return thisSector, 0, nextFree, cFHP, err
 }
 
-func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thisSector int, iFHP int )( _ int, _ int, _ int, err error){
+func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thisSector int, iFHP int, FHPp *oxfsgo.OXFS_HeaderPage )( _ int, _ int, _ int, err error){
 	var storedAt, storedIdx int
 
 	nextFree := thisSector + 29
@@ -227,17 +227,17 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
 		dirPage.Mark = oxfsgo.OBFS_DirMark
                 dirPage.M = int32(len(dT.Name))
 		if dT.P0 != nil{
-			storedAt, nextFree, _, err = produceDir(f, dT.P0, files, outfmt, nextFree, -1 )
+			storedAt, nextFree, _, err = produceDir(f, dT.P0, files, outfmt, nextFree, -1, FHPp )
 			dirPage.P0 = oxfsgo.OBFS_DiskAdr(storedAt)
 		}
 		for i, _ := range dT.P{
 			for x, ch := range []byte(dT.Name[i]){
 				dirPage.E[i].Name[x]=ch
 			}
-                        storedAt, _, nextFree, _, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree, -1 )
+                        storedAt, _, nextFree, _, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree, -1, FHPp )
                         dirPage.E[i].Adr = oxfsgo.OBFS_DiskAdr(storedAt)
 			if dT.P[i] != nil {
-				storedAt, nextFree, _, err = produceDir(f, dT.P[i], files, outfmt, nextFree, -1 )
+				storedAt, nextFree, _, err = produceDir(f, dT.P[i], files, outfmt, nextFree, -1, FHPp )
 	                        dirPage.E[i].P = oxfsgo.OBFS_DiskAdr(storedAt)
 			}
 		}
@@ -254,18 +254,18 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
                 dirPage.Mark = oxfsgo.OXFS_DirMark
                 dirPage.M = int64(len(dT.Name))
                 if dT.P0 != nil{
-                        storedAt, nextFree, cFHP, err = produceDir(f, dT.P0, files, outfmt, nextFree, cFHP )
+                        storedAt, nextFree, cFHP, err = produceDir(f, dT.P0, files, outfmt, nextFree, cFHP, FHPp )
                         dirPage.P0 = oxfsgo.OXFS_DiskAdr(storedAt)
                 }
                 for i, _ := range dT.P{
                         for x, ch := range []byte(dT.Name[i]){
                                 dirPage.E[i].Name[x]=ch
                         }
-                        storedAt, storedIdx, nextFree, cFHP, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree, cFHP )
+                        storedAt, storedIdx, nextFree, cFHP, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree, cFHP, FHPp )
                         dirPage.E[i].Adr = oxfsgo.OXFS_DiskAdr(storedAt)
                         dirPage.E[i].I = byte( storedIdx)
                         if dT.P[i] != nil {
-                                storedAt, nextFree, cFHP, err = produceDir(f, dT.P[i], files, outfmt, nextFree, cFHP )
+                                storedAt, nextFree, cFHP, err = produceDir(f, dT.P[i], files, outfmt, nextFree, cFHP, FHPp )
                                 dirPage.E[i].P = oxfsgo.OXFS_DiskAdr(storedAt)
                         }
                 }
@@ -304,6 +304,8 @@ func installBootImage(f *os.File, bootImage []byte, outfmt int)(err error){
 
 func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error){
 	var nA []string
+	var FHP oxfsgo.OXFS_HeaderPage
+	var FHPp *oxfsgo.OXFS_HeaderPage
 
 	nE:=len(files)
 	if _, ok := files["_BOOTIMAGE_"]; ok {
@@ -330,10 +332,11 @@ func produceDirTree( files map[string]ofile, outfmt int,fw *os.File) (err error)
 		if outfmt == EXTENDED || outfmt == PADDEDEXTENDED {
 			dsz = oxfsgo.OXFS_N+(oxfsgo.OXFS_N/2)
 			cFHP = 0
+			FHPp = &FHP
 		}
 		dT := populateDir(rnA[:],files,dsz)
 
-		_,_,_, err = produceDir(fw,dT,files,outfmt,29,cFHP)
+		_,_,_, err = produceDir(fw,dT,files,outfmt,29,cFHP,FHPp)
 	}
 
 	return err

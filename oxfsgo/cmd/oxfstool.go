@@ -221,14 +221,14 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
 					FHPp.Headers[i].Type=4294967295 // empty slot
 				}
 			}
-                        FHPp.Headers[FHPp.Tmp].Type = 0  // regular file
-                        FHPp.Headers[FHPp.Tmp].Perm = 0
-                        FHPp.Headers[FHPp.Tmp].Date = 0
-                        FHPp.Headers[FHPp.Tmp].Length = uint64(len(e.Data))
-                        FHPp.Headers[FHPp.Tmp].Owner = 0
-                        FHPp.Headers[FHPp.Tmp].Group = 0
 
 		}
+                FHPp.Headers[FHPp.Tmp].Type = 0  // regular file
+                FHPp.Headers[FHPp.Tmp].Perm = 0
+                FHPp.Headers[FHPp.Tmp].Date = 0
+                FHPp.Headers[FHPp.Tmp].Length = uint64(len(e.Data))
+                FHPp.Headers[FHPp.Tmp].Owner = 0
+                FHPp.Headers[FHPp.Tmp].Group = 0
 
                 if outfmt == ORIGINAL {
                         _,err = f.Seek( (int64(cFHP/29)-1)*1024,0)

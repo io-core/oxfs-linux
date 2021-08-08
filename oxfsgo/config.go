@@ -61,7 +61,7 @@ type  OXFS_FileHeader struct { // 63 in a HeaderPage
 type  OXFS_HeaderPage struct {
         Mark uint64
 	Next uint64        // (*sec no of next non-full HeaderPage, zero if full *)
-	Tmp uint64
+	Bmap uint64        // bitmap of used FileHeader entries in this page
 	Fill [40]byte
 	Headers [OXFS_HdrPgSize]OXFS_FileHeader
 }

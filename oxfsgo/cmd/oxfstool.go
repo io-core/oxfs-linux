@@ -159,10 +159,13 @@ func produceXIndirectBlock(f *os.File, xb * xblock, outfmt int )( err error){
 }
 
 func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, iFHP int, FHPp *oxfsgo.OXFS_HeaderPage)( _ int, _ int, _ int, _ int, err error){
-	nextFree := thisSector + 29
+
+	nextFree := thisSector
 	cFHP := iFHP
 
         if outfmt == ORIGINAL || outfmt == PADDEDORIGINAL {
+		nextFree = thisSector + 29
+
                 var hdrPage oxfsgo.OBFS_FileHeader
 		fillsize:=1024-oxfsgo.OBFS_HeaderSize
 
@@ -226,28 +229,40 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
 		if FHPp.Mark == 0 {
 			FHPp.Mark = oxfsgo.OXFS_HeaderMark
 			FHPp.Next = 0
-			FHPp.Tmp = 0
+			FHPp.Bmap = 0
 			for i:=0;i<oxfsgo.OXFS_HdrPgSize;i++{
 				FHPp.Headers[i].Type=4294967295  // empty slot
 			}
 		}else{
-			FHPp.Tmp = FHPp.Tmp + 1
-			if FHPp.Tmp == 63 {
+			FHPp.Bmap = FHPp.Bmap + 1
+			if FHPp.Bmap == 63 {
+
+				FHPp.Bmap = 0xFFFFFFFFFFFFFFFF
+				if outfmt == EXTENDED {
+				        _,err = f.Seek( (int64(cFHP/29)-1)*4096,0)
+				}else{
+				        _,err = f.Seek( PADOFFSET + ((int64(cFHP/29))*4096)-1,0)
+				}
+				if err == nil {
+				        err = binary.Write(f, binary.LittleEndian, *FHPp)
+				}
+
 				cFHP = nextFree
 				nextFree = thisSector + 29
-				FHPp.Tmp = 0
+				FHPp.Bmap = 0
 				for i:=0;i<oxfsgo.OXFS_HdrPgSize;i++{
 					FHPp.Headers[i].Type=4294967295 // empty slot
 				}
 			}
 
 		}
-                FHPp.Headers[FHPp.Tmp].Type = 0  // regular file
-                FHPp.Headers[FHPp.Tmp].Perm = 0
-                FHPp.Headers[FHPp.Tmp].Date = 0
-                FHPp.Headers[FHPp.Tmp].Length = uint64(len(e.Data))
-                FHPp.Headers[FHPp.Tmp].Owner = 0
-                FHPp.Headers[FHPp.Tmp].Group = 0
+                FHPp.Headers[FHPp.Bmap].Type = 0  // regular file
+                FHPp.Headers[FHPp.Bmap].Perm = 0
+                FHPp.Headers[FHPp.Bmap].Date = 0
+                FHPp.Headers[FHPp.Bmap].Length = uint64(len(e.Data))
+		fmt.Println(" size ", FHPp.Headers[FHPp.Bmap].Length)
+                FHPp.Headers[FHPp.Bmap].Owner = 0
+                FHPp.Headers[FHPp.Bmap].Group = 0
 
 		var xb xblock
 		indirectUsed := false
@@ -264,7 +279,7 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
 			dAdr, nextFree, err = produceFileData(f, outfmt, nextFree, e.Data[thisstart:thisend])
 
                         if n<3 {
-                                FHPp.Headers[FHPp.Tmp].Tab[n]=oxfsgo.OXFS_DiskAdr(dAdr)
+                                FHPp.Headers[FHPp.Bmap].Tab[n]=oxfsgo.OXFS_DiskAdr(dAdr)
                         }else if ((n-3)/512) < 511  {
                                 ni := (n-3)/512
                                 if ni % 512 == 0 {
@@ -273,7 +288,7 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
                                         }
                                         indirectUsed = true
 
-                                        FHPp.Headers[FHPp.Tmp].Tab[3] = oxfsgo.OXFS_DiskAdr(nextFree)
+                                        FHPp.Headers[FHPp.Bmap].Tab[3] = oxfsgo.OXFS_DiskAdr(nextFree)
                                         xb.A =  int64(nextFree)
                                         nextFree = nextFree + 29
                                 }
@@ -296,7 +311,7 @@ func produceFile(f *os.File, e ofile, name string, outfmt int, thisSector int, i
                 }
 	}
 
-	return thisSector, int(FHPp.Tmp), nextFree, cFHP, err
+	return thisSector, int(FHPp.Bmap), nextFree, cFHP, err
 }
 
 func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thisSector int, iFHP int, FHPp *oxfsgo.OXFS_HeaderPage )( _ int, _ int, _ int, err error){
@@ -350,8 +365,9 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
                         for x, ch := range []byte(dT.Name[i]){
                                 dirPage.E[i].Name[x]=ch
                         }
-                        storedAt, storedIdx, nextFree, cFHP, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree, cFHP, FHPp )
-                        dirPage.E[i].Adr = oxfsgo.OXFS_DiskAdr(storedAt)
+			fmt.Print(" producing ",dT.Name[i])
+                        _, storedIdx, nextFree, cFHP, err = produceFile(f, files[dT.Name[i]], dT.Name[i], outfmt, nextFree, cFHP, FHPp )
+                        dirPage.E[i].Adr = oxfsgo.OXFS_DiskAdr(cFHP)
                         dirPage.E[i].I = byte( storedIdx)
                         if dT.P[i] != nil {
                                 storedAt, nextFree, cFHP, err = produceDir(f, dT.P[i], files, outfmt, nextFree, cFHP, FHPp )
@@ -365,6 +381,10 @@ func produceDir(f *os.File, dT *dirTree, files map[string]ofile, outfmt int, thi
                 }
                 if err == nil {
                         err = binary.Write(f, binary.LittleEndian, dirPage)
+			fmt.Println("dirpage")
+			for i:=0; i<int(dirPage.M); i++{
+				fmt.Println(" ",dirPage.E[i].Name,dirPage.E[i].Adr,dirPage.E[i].I,dirPage.E[i].P)
+			}
                 }
 	}
 	return thisSector, nextFree, cFHP, err
@@ -529,6 +549,38 @@ func getOriginalDataBlock(f *os.File, pad int64, e uint64, fp *oxfsgo.OBFS_FileH
 	return block, err
 }
 
+func getExtendedDataBlock(f *os.File, pad int64, e uint64, hp *oxfsgo.OXFS_HeaderPage, ii byte, xblk *xblock)(block []byte, err error){
+	block = make([]byte, 4096)
+	if e < 3 {
+	        _,err = f.Seek(pad + (int64(hp.Headers[ii].Tab[e])/29-1)*4096,0)
+	        if err == nil {
+	                _, err = f.Read(block)
+		}
+	}else{
+		x:=e-3
+		i:=int64(hp.Headers[ii].Tab[x/512])
+		r:=x%512
+		if xblk.A == i {
+//			fmt.Print("!")
+		}else{
+//			fmt.Print("?")
+			xblk.A=i
+	                _,err = f.Seek(pad + (xblk.A/29-1)*4096,0)
+	                if err == nil {
+				err = binary.Read(f, binary.LittleEndian, xblk.E)
+	                }
+		}
+                if err == nil {
+                        _,err = f.Seek(pad + (int64(xblk.E[r])/29-1)*4096,0)
+                }
+                if err == nil {
+			_, err = f.Read(block)
+                }
+	}
+
+	return block, err
+}
+
 func ingestOriginalFile(f *os.File, pad int64, sector int64)(fe ofile, err error){
         var fp oxfsgo.OBFS_FileHeader
 	var iblk iblock
@@ -566,7 +618,34 @@ func ingestOriginalFile(f *os.File, pad int64, sector int64)(fe ofile, err error
 	return fe, err
 }
 
-func ingestExtendedFile(f *os.File, pad int64, sector int64)(fe ofile, err error){
+func ingestExtendedFile(f *os.File, pad int64, sector int64, ii byte)(fe ofile, err error){
+        var hp oxfsgo.OXFS_HeaderPage
+	var xblk xblock
+	var block []byte
+
+        _,err = f.Seek(pad + ((sector/29)-1)*4096,0)
+        if err == nil {
+                err = binary.Read(f, binary.LittleEndian, &hp)
+        }
+        if err == nil {
+		fe.Date=hp.Headers[ii].Date
+		fe.Length=hp.Headers[ii].Length
+		fmt.Println(" size ",fe.Length)
+		fe.Data=make([]byte, fe.Length)
+		e:=uint64(0)
+		for i:=0; i < int(fe.Length); i=i+4096 {
+			block,err=getExtendedDataBlock(f,pad,e,&hp,ii,&xblk)
+			if e*4096<=fe.Length{
+				//copy(fe.Data[i:i+4096],block)
+			}else{
+				sz :=  int(fe.Length)-i
+				copy(fe.Data[i:i+sz],block[0:sz])
+			}
+			e++
+		}
+//		fmt.Println()
+	}
+
         return fe, err
 }
 
@@ -627,8 +706,7 @@ func ingestOriginalDir(f *os.File, pad int64, sector int64, files map[string]ofi
 }
 
 func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofile) ( _ map[string]ofile, err error){
-        var dp *oxfsgo.OXFS_DirPage
-
+        var dp oxfsgo.OXFS_DirPage
 
         _,err = f.Seek(pad + ((sector/29)-1)*4096,0)
         if err == nil {
@@ -640,7 +718,8 @@ func ingestExtendedDir(f *os.File, pad int64, sector int64, files map[string]ofi
                 }
                 for i:=int64(0);i<dp.M;i++{
 //                      fmt.Println("ingesting dirpage",sector,"mark",dp.Mark,"count",dp.M)
-                        files[string(dp.E[i].Name[:])],err=ingestExtendedFile(f,pad,int64(dp.E[i].Adr))
+			fmt.Print("ingesting ",string(dp.E[i].Name[:]))
+                        files[string(dp.E[i].Name[:])],err=ingestExtendedFile(f,pad,int64(dp.E[i].Adr),dp.E[i].I)
                         if dp.E[i].P != 0 {
                                 files, err = ingestExtendedDir(f,pad,int64(dp.E[i].P),files)
                         }

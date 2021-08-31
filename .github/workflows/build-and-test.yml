@@ -6,6 +6,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - name: GetGo  
         uses: actions/setup-go@v2
         with:
             go-version: '1.9.3'
@@ -29,6 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - name: GetGo  
         uses: actions/setup-go@v2
         with:
             go-version: '1.9.3'

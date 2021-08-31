@@ -828,6 +828,7 @@ func main() {
         inPtr := flag.String("i", "", "input disk image")
         outPtr := flag.String("o", "", "output disk image")
 	sizePtr := flag.String("s", "same", "output disk image size e.g. '64M', '1G', '8G', etc. or 'same'")
+	versionPtr := flag.Bool("V", false, "output the version of oxfstool")
 	forcePtr := flag.Bool("f", false, "overwrite output disk image if it exists")
 	o2xPtr := flag.Bool("o2x", false, "convert from original to extended format")
         x2oPtr := flag.Bool("x2o", false, "convert from extended to original format")
@@ -850,7 +851,9 @@ func main() {
         if *f2xPtr { c++; infmt = LOCALFILES; outfmt = EXTENDED; }
         if *checkPtr { c++; }
 
-	if c != 1 {
+	if *versionPtr {
+                fmt.Println("0.1.1")
+	}else if c != 1 {
                 fmt.Println("specify one of o2x, x2o, o2f, x2f, f2o, f2x, or check")
                 flag.PrintDefaults()
                 os.Exit(1)

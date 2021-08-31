@@ -23,7 +23,7 @@ jobs:
         run: |
           cd oxfsgo
           ls -alh
-          ./oxfstool --version
+          ./oxfstool -V
 
   MacOS-build:
     runs-on: macOS-latest
@@ -46,6 +46,6 @@ jobs:
         run: |
           cd oxfsgo
           ls -alh
-          ./oxfstool --version
+          ./oxfstool -V
 
 

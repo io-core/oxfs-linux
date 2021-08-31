@@ -22,6 +22,11 @@ jobs:
         run: |
           cd oxfsgo
           go version
+          pwd
+          yo=`pwd`
+          echo "GOPATH=$GOPATH"
+          echo "GOROOT=$GOROOT"
+          export GOPATH=$yo:$GOPATH
           go build cmd/oxfstool.go
 
       - name: Test

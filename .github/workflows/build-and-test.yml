@@ -20,11 +20,14 @@ jobs:
 
       - name: Build
         run: |
+          cd oxfsgo
           go version
+          go build cmd/oxfstool.go
 
       - name: Test
         run: |
           ls -alh
+          ./oxfstool --version
 
   MacOS-build:
     runs-on: macOS-latest
@@ -43,9 +46,12 @@ jobs:
 
       - name: Build
         run: |
+          cd oxfsgo
           go version
+          go build cmd/oxfstool.go
 
       - name: Test
         run: |
-          ls -alh  
+          ls -alh
+          ./oxfstool --version
 

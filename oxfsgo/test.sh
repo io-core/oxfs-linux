@@ -11,7 +11,7 @@ mkdir -p onp
 #echo "expanded not padded image:"
 #ls -alh onp
 
-./oxfstool -f2o -i onp -i io2.img -s 8M
+./oxfstool -f2o -i onp -o io2.img -s 8M
 
 #test creating an unpadded image
 mkdir -p onp2

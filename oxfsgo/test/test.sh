@@ -43,7 +43,7 @@ then
     exit 1
 fi
 
-#echo "failure!" >> onp2/failure.file
+echo "failure!" >> onp2/failure.file
 #round-trip test
 diff -r onp onp2
 rv=$?  

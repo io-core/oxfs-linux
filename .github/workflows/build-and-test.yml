@@ -21,7 +21,7 @@ jobs:
 
       - name: Test
         run: |
-          cd oxfsgo
+          cd oxfsgo/test
           bash test.sh
 
   MacOS-build:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Test
         run: |
-          cd oxfsgo
+          cd oxfsgo/test
           bash test.sh
 
 

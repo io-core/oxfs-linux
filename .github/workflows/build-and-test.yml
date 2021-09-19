@@ -22,9 +22,7 @@ jobs:
       - name: Test
         run: |
           cd oxfsgo
-          unzip RISCimg.zip
-          ls -alh
-          ./oxfstool -V
+          bash test.sh
 
   MacOS-build:
     runs-on: macOS-latest
@@ -46,8 +44,6 @@ jobs:
       - name: Test
         run: |
           cd oxfsgo
-          unzip RISCimg.zip
-          ls -alh
-          ./oxfstool -V
+          bash test.sh
 
 

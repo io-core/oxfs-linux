@@ -12,6 +12,11 @@ if [ -d onp ]; then
 fi
 mkdir -p onp
 ../oxfstool -o2f -i io.img -o onp
+if [[ $rv == 1 ]]  
+then    
+    echo "failed encoding"    
+    exit 1
+fi
 
 #echo "expanded not padded image:"
 #ls -alh onp
@@ -20,6 +25,11 @@ if [ -f io2.img ]; then
   rm -f io2.img
 fi
 ../oxfstool -f2o -i onp -o io2.img -s 8M
+if [[ $rv == 1 ]]  
+then    
+    echo "failed decoding"    
+    exit 1
+fi
 
 #test creating an unpadded image
 if [ -d onp2 ]; then
@@ -27,9 +37,21 @@ if [ -d onp2 ]; then
 fi
 mkdir -p onp2
 ../oxfstool -o2f -i io2.img -o onp2
+if [[ $rv == 1 ]]  
+then    
+    echo "failed encoding"    
+    exit 1
+fi
 
+#echo "failure!" >> onp2/failure.file
 #round-trip test
 diff -r onp onp2
+rv=$?  
+if [[ $rv == 1 ]]  
+then    
+    echo "failed comparison"    
+    exit 1
+fi
 
 #test expanding a padded image
 if [ -d op ]; then
@@ -37,6 +59,11 @@ if [ -d op ]; then
 fi
 mkdir -p op
 ../oxfstool -o2f -i RISC.img -o op
+if [[ $rv == 1 ]]  
+then    
+    echo "failed decoding"    
+    exit 1
+fi
 
 #echo "expanded padded image:"
 #ls -alh op

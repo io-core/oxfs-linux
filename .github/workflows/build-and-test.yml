@@ -22,6 +22,7 @@ jobs:
       - name: Test
         run: |
           cd oxfsgo
+          unzip RISCimg.zip
           ls -alh
           ./oxfstool -V
 
@@ -45,6 +46,7 @@ jobs:
       - name: Test
         run: |
           cd oxfsgo
+          unzip RISCimg.zip
           ls -alh
           ./oxfstool -V
 

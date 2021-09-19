@@ -43,7 +43,9 @@ then
     exit 1
 fi
 
-echo "failure!" >> onp2/failure.file
+#uncomment next line to force a failure:
+#echo "failure!" >> onp2/failure.file
+
 #round-trip test
 diff -r onp onp2
 rv=$?  
